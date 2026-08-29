@@ -88,7 +88,19 @@
 
   function withActor(text, game) {
     const p = currentActor(game);
-    return AF_GEN.fill(text || "", { actor: p ? p.name : "qualcuno" });
+    const name = p ? p.name : "qualcuno";
+    const raw = String(text || "").replace(/\bchi gira\b/g, "{actor}");
+    return AF_GEN.fill(raw, { actor: name });
+  }
+
+  function storyHtml(lines, game, intro) {
+    return (lines || [])
+      .map((s) => {
+        const t = game ? withActor(s, game) : s;
+        const kicker = intro && t.length <= 22 && t.endsWith(".");
+        return `<p class="line${kicker ? " kicker-line" : ""}">${escapeHtml(t)}</p>`;
+      })
+      .join("");
   }
 
   function startNew(masterName, playerNames) {
@@ -121,12 +133,6 @@
     });
     AF_STORAGE.setActive(null);
     state.game = null;
-  }
-
-  function storyHtml(lines, game) {
-    return (lines || [])
-      .map((s) => `<p class="line">${escapeHtml(game ? withActor(s, game) : s)}</p>`)
-      .join("");
   }
 
   function finish(game, outcome) {
@@ -408,7 +414,7 @@
     if (sc.type === "intro") {
       return `<section class="screen play">${hud(game)}
         <article class="card parchment">
-          ${storyHtml(sc.story, game)}
+          ${storyHtml(sc.story, game, true)}
           <p class="who">Giocano: <strong>${escapeHtml(game.players.map((p) => p.name).join(", "))}</strong></p>
         </article>
         <button class="btn primary xl" data-act="intro-next">Iniziamo</button>

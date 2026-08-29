@@ -195,6 +195,15 @@ input[type="text"] {
   line-height: 1.4;
 }
 .parchment .line:last-child { margin-bottom: 0; }
+.parchment .kicker-line {
+  margin: 0.85em 0 0.15em;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a5a1f;
+}
+.parchment .kicker-line:first-child { margin-top: 0; }
 .prompt {
   margin: 14px 0 8px;
   font-weight: 800;
