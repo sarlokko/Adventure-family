@@ -459,7 +459,7 @@
                     <span>${escapeHtml(c.label)}</span>
                     <em>Serve ${c.target} o più sul dado</em>
                     <small class="path-ok">Se riesci: ${escapeHtml(c.ok)}</small>
-                    <small class="path-fail">Se fallisci: perdi ${c.dmg} ${c.dmg === 1 ? "cuore" : "cuori"}. ${escapeHtml(c.fail)}</small>
+                    <small class="path-fail">Se fallisci: ${escapeHtml(c.fail)}</small>
                   </button>`
               )
               .join("")}
@@ -476,9 +476,9 @@
           <article class="card parchment center">
             <p class="card-kicker">Dado</p>
             <h2>${escapeHtml(actor ? actor.name : "")}</h2>
-            <p>Il dado ha 6 facce. Serve <strong>${choice.target} o più</strong>.</p>
+            <p>Il dado ha 6 facce. Serve <strong>${choice.target} o più</strong>. Se esce di meno perdi ${choice.dmg} ${choice.dmg === 1 ? "cuore" : "cuori"} e la storia va dall'altra parte.</p>
             <p class="path-ok">Se esce ${choice.target} o più: ${escapeHtml(choice.ok)}</p>
-            <p class="path-fail">Se esce di meno: perdi ${choice.dmg} ${choice.dmg === 1 ? "cuore" : "cuori"}. ${escapeHtml(choice.fail)}</p>
+            <p class="path-fail">Se esce di meno: ${escapeHtml(choice.fail)}</p>
             <div class="die ${state.rolling ? "spin" : ""} ${state.lastRoll ? (state.lastRoll.ok ? "ok" : "bad") : ""}" aria-live="polite">${
               state.rolling ? "?" : state.lastRoll ? state.lastRoll.value : "⚀"
             }</div>
