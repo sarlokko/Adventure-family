@@ -99,8 +99,7 @@
       treasure: treasure.name,
       npc: npc.name,
       npcLine: npc.line,
-      master: opts.masterName,
-      actor: "chi gira"
+      master: opts.masterName || ""
     };
 
     const scenes = [];

@@ -123,8 +123,10 @@
     state.game = null;
   }
 
-  function storyHtml(lines) {
-    return (lines || []).map((s) => `<p class="line">${escapeHtml(s)}</p>`).join("");
+  function storyHtml(lines, game) {
+    return (lines || [])
+      .map((s) => `<p class="line">${escapeHtml(game ? withActor(s, game) : s)}</p>`)
+      .join("");
   }
 
   function finish(game, outcome) {
@@ -173,7 +175,7 @@
     state.lastSpin = null;
     const next = scene(game);
     if (next && game.pathNote) {
-      next.story = [game.pathNote].concat(next.story || []);
+      next.story = [withActor(game.pathNote, game)].concat(next.story || []);
       game.pathNote = null;
     }
     if (next && next.type === "ending") {
@@ -406,7 +408,7 @@
     if (sc.type === "intro") {
       return `<section class="screen play">${hud(game)}
         <article class="card parchment">
-          ${storyHtml(sc.story)}
+          ${storyHtml(sc.story, game)}
           <p class="who">Giocano: <strong>${escapeHtml(game.players.map((p) => p.name).join(", "))}</strong></p>
         </article>
         <button class="btn primary xl" data-act="intro-next">Iniziamo</button>
@@ -418,7 +420,7 @@
       return `<section class="screen play">${hud(game)}
         <article class="card parchment">
           <p class="card-kicker">${o.ok ? "Verde" : "Rosso"}</p>
-          ${storyHtml([o.text].concat(o.deathText ? [o.deathText] : []))}
+          ${storyHtml([o.text].concat(o.deathText ? [o.deathText] : []), game)}
         </article>
         <button class="btn primary xl" data-act="scene-next">Avanti</button>
       </section>`;
@@ -429,7 +431,7 @@
       <article class="card parchment">
         ${sc.locationName ? `<p class="card-kicker">${escapeHtml(sc.locationName)}</p>` : ""}
         <h2>${escapeHtml(sc.title)}</h2>
-        ${storyHtml(sc.story)}
+        ${storyHtml(sc.story, game)}
         ${actor ? `<p class="who">Tocca a <strong>${escapeHtml(actor.name)}</strong>.</p>` : ""}
       </article>
       <p class="prompt">${escapeHtml(sc.prompt || "Cosa fate?")}</p>
@@ -456,7 +458,7 @@
       <section class="screen end">
         <p class="eyebrow">${escapeHtml(label)}</p>
         <h1>${escapeHtml(game.title)}</h1>
-        <article class="card parchment">${storyHtml(sc.story && sc.story.length ? sc.story : game.endings.fail)}</article>
+        <article class="card parchment">${storyHtml(sc.story && sc.story.length ? sc.story : game.endings.fail, game)}</article>
         <ul class="party">${game.players
           .map(
             (p) =>

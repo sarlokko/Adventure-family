@@ -560,10 +560,14 @@
 
   C.openings = [
     [
+      "Dove siete.",
       "{worldLine}",
-      "La missione: {questLine}",
-      "Il cattivo: {villainLine}",
-      "Un amico: {npcLine}",
+      "Cosa dovete fare.",
+      "{questLine}",
+      "Chi è il cattivo.",
+      "{villainLine}",
+      "Chi vi aiuta.",
+      "{npcLine}",
       "Ognuno ha 3 cuori. A zero si esce da questa storia.",
       "Si legge. Si sceglie. Si gira la bussola.",
       "Verde: va bene. Giallo: gira ancora. Rosso: un cuore in meno."

@@ -40,6 +40,9 @@
         if (!choice) throw new Error("no choice acts=" + acts());
         choice.click();
         if (!document.querySelector("[data-act='do-spin']")) throw new Error("no compass acts=" + acts());
+        AF_RNG.spinCompass = function () {
+          return { color: "green", needle: 60, rotation: 6 * 360 + 300 };
+        };
         AF_APP.state.forceColor = "green";
         click("do-spin");
         let found = false;

@@ -200,7 +200,17 @@ test("generated scenes carry story lines and next-path lines", () => {
   assert.ok(ch.choices[0].redNext);
   const intro = g.scenes[0];
   const blob = intro.story.join(" ");
-  assert.ok(blob.includes("missione") || blob.includes("Missione") || blob.includes("bussola"));
+  assert.ok(blob.includes("Dove siete") || blob.includes("bussola"));
+});
+
+test("actor placeholder stays until play, then becomes the name", () => {
+  const g = makeGame(2);
+  const ch = g.scenes.find((s) => s.type === "challenge");
+  const hit = ch.choices.find((c) => /\{actor\}/.test(c.green + c.red));
+  assert.ok(hit, "at least one outcome should name who acts");
+  const filled = GEN.fill(hit.red.includes("{actor}") ? hit.red : hit.green, { actor: "Luca" });
+  assert.ok(filled.includes("Luca"));
+  assert.ok(!filled.includes("{actor}"));
 });
 
 test("turns rotate across scenes", () => {
