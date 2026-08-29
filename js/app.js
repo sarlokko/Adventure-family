@@ -93,7 +93,7 @@
     state.view = "play";
     state.role = "master";
     if (game.resets.length) {
-      toast("Hai esaurito alcuni elementi: " + game.resets.join(", ") + ". Quei mazzi sono stati rimescolati, le combinazioni restano nuove.");
+      toast("Alcuni mazzi erano finiti (" + game.resets.join(", ") + "). Li ho rimescolati: la storia resta nuova.");
     }
     render();
   }
@@ -164,6 +164,12 @@
     game.currentChoiceId = null;
     game.currentActorIndex = 0;
     const next = scene(game);
+    if (next && game.pathNote) {
+      next.incoming = game.pathNote;
+      next.masterText = game.pathNote + "\n\n" + next.masterText;
+      if (next.playerText) next.playerText = game.pathNote + " " + next.playerText;
+      game.pathNote = null;
+    }
     if (next && next.type === "ending") {
       const alive = AF_GEN.alivePlayers(game);
       finish(game, alive.length ? "win" : "tpk");
@@ -181,12 +187,18 @@
     const rolls = game.rolls.filter((r) => r.sceneId === sc.id && r.choiceId === choice.id);
     const anyOk = rolls.some((r) => r.ok);
     const allFail = rolls.length && rolls.every((r) => !r.ok);
+    let pathOk = anyOk;
+    if (sc.type === "climax") {
+      const needed = Math.ceil(Math.max(1, rolls.length) / 2);
+      pathOk = rolls.filter((r) => r.ok).length >= needed;
+    }
     game.lastOutcome = {
-      text: anyOk ? choice.ok : choice.fail,
-      ok: anyOk,
+      text: pathOk ? choice.ok : choice.fail,
+      ok: pathOk,
       allFail,
       rolls
     };
+    game.pathNote = pathOk ? choice.okNext || "" : choice.failNext || "";
     game.phase = "result";
     if (AF_GEN.checkTpk(game)) {
       finish(game, "tpk");
@@ -294,7 +306,7 @@
         <div class="hero">
           <p class="eyebrow">Portale GDR per famiglie</p>
           <h1>Adventure Family</h1>
-          <p class="lead">Ogni volta un'avventura nuova. Un master, i giocatori, un dado. Circa mezz'ora. Si può anche finire male.</p>
+          <p class="lead">Una storia da giocare in famiglia, circa mezz'ora. Un adulto legge. I bambini scelgono cosa fare e tirano un dado. Ogni avventura è diversa. Si può anche perdere.</p>
         </div>
         ${
           pending
@@ -326,7 +338,7 @@
               </div>`
             : ""
         }
-        <p class="fine">Le avventure pescano sempre elementi mai usati (mondo, missione, nemico, luoghi, prove, ruoli). Quando un mazzo finisce, si rimescola da solo.</p>
+        <p class="fine">Il gioco pesca sempre pezzi di storia ancora non usati (posto, missione, cattivo, luoghi, prove). Quando un mazzo finisce, si rimescola da solo.</p>
       </section>`;
   }
 
@@ -344,7 +356,7 @@
       <section class="screen setup">
         <button class="btn text" data-act="home">← Indietro</button>
         <h1>Chi gioca?</h1>
-        <p class="lead">Un adulto (o chi se la sente) fa il <strong>master</strong>: legge, tiene i segreti, fa volare la storia. Gli altri sono i giocatori e tirano i dadi.</p>
+        <p class="lead">Il <strong>master</strong> (di solito un adulto) legge il quaderno ad alta voce e tiene i segreti. Gli altri sono gli avventurieri: scelgono cosa fare e tirano un dado a 6 facce.</p>
         <label>Nome del master
           <input type="text" id="masterName" maxlength="24" value="${escapeHtml(state.setupMaster)}" placeholder="Es. Mamma, Papà, Nonna…">
         </label>
@@ -355,7 +367,7 @@
             <strong>${count}</strong>
             <button class="btn icon" data-act="count-up" ${count >= 6 ? "disabled" : ""}>+</button>
           </div>
-          <p class="fine">Da 1 a 6, più il master. Durata: circa 30 minuti.</p>
+          <p class="fine">Da 1 a 6 avventurieri, più il master. Circa mezz'ora.</p>
         </div>
         <div class="names">${inputs}</div>
         <button class="btn primary xl" data-act="create">Crea l'avventura</button>
@@ -384,6 +396,7 @@
         )
         .join("")}</ul>
       ${sc && sc.kindLabel ? `<p class="kind-chip">${escapeHtml(sc.kindLabel)} · ${escapeHtml(sc.locationName || "")}</p>` : ""}
+      <p class="mission"><strong>Missione:</strong> ${escapeHtml(game.quest.name)}. <strong>Cattivo:</strong> ${escapeHtml(game.villain.name)}.</p>
     `;
   }
 
@@ -403,31 +416,40 @@
           ${sc.secret ? `<details class="secret"><summary>Nota segreta (solo master)</summary><p>${escapeHtml(sc.secret)}</p></details>` : ""}
           ${
             sc.actors && sc.actors.length
-              ? `<p class="who">Tocca a: <strong>${escapeHtml(namesOf(game, sc.actors).join(", "))}</strong></p>`
+              ? `<p class="who">Adesso tocca a: <strong>${escapeHtml(namesOf(game, sc.actors).join(", "))}</strong>. ${sc.actors.length === 1 ? "Questa persona tira il dado." : "Queste persone sono in azione; si tira il dado."}</p>`
               : ""
           }
         </article>
         ${
           sc.type === "intro"
-            ? `<button class="btn primary xl" data-act="intro-next">I giocatori sono pronti — inizia</button>`
+            ? `<button class="btn primary xl" data-act="intro-next">I giocatori si sono presentati — inizia la prima prova</button>`
             : game.phase === "result"
               ? `<article class="card">
-                  <p class="card-kicker">${game.lastOutcome && game.lastOutcome.ok ? "Esito: successo" : "Esito: insuccesso"}</p>
+                  <p class="card-kicker">${game.lastOutcome && game.lastOutcome.ok ? "Ce l'avete fatta — la storia va così" : "Non è andata — la storia va dall'altra parte"}</p>
                   <p class="story">${escapeHtml((game.lastOutcome && game.lastOutcome.text) || "")}</p>
                 </article>
-                <button class="btn primary xl" data-act="scene-next">Scena successiva</button>`
-              : `<button class="btn primary xl" data-act="to-players">Passa il dispositivo ai giocatori</button>`
+                <button class="btn primary xl" data-act="scene-next">Vai alla scena dopo</button>`
+              : `<button class="btn primary xl" data-act="to-players">Passa il telefono agli avventurieri</button>`
         }
         <button class="btn ghost" data-act="home-pause">Metti in pausa</button>
       `;
     } else {
       if (sc.type === "intro") {
-        body = `<article class="card"><p>Il master sta aprendo la storia. Quando ha finito, torna alla vista Master e preme inizia.</p></article>`;
+        body = `<article class="card parchment">
+          <h2>Ascoltate il master</h2>
+          <p class="story">${escapeHtml(sc.playerText || "Il master sta aprendo la storia.")}</p>
+          <p class="who">I vostri ruoli:</p>
+          <ul class="mini-log">${game.players
+            .map((p) => `<li><strong>${escapeHtml(p.name)}</strong> — ${escapeHtml(p.role.name)}: ${escapeHtml(p.role.knack)}</li>`)
+            .join("")}</ul>
+          <p class="fine">Quando il master ha finito, tornate alla vista Master e premete il bottone per iniziare.</p>
+        </article>`;
       } else if (game.phase === "master" || game.phase === "choose") {
         body = `
           <article class="card parchment">
             <h2>${escapeHtml(sc.prompt || sc.title)}</h2>
-            <p class="who">Toccano a <strong>${escapeHtml(namesOf(game, sc.actors).join(" e "))}</strong> scegliere. Poi si tira un dado a 6 facce.</p>
+            <p class="story">${escapeHtml(sc.playerText || "")}</p>
+            <p class="who">Scelgono <strong>${escapeHtml(namesOf(game, sc.actors).join(" e "))}</strong>. Poi si tira un dado a 6 facce.</p>
           </article>
           <div class="choices">
             ${sc.choices
@@ -435,12 +457,14 @@
                 (c) =>
                   `<button class="choice ${game.currentChoiceId === c.id ? "picked" : ""}" data-act="pick" data-id="${c.id}">
                     <span>${escapeHtml(c.label)}</span>
-                    <em>serve ${c.target}+ · rischio ${c.dmg} ♥</em>
+                    <em>Serve ${c.target} o più sul dado</em>
+                    <small class="path-ok">Se riesci: ${escapeHtml(c.ok)}</small>
+                    <small class="path-fail">Se fallisci: perdi ${c.dmg} ${c.dmg === 1 ? "cuore" : "cuori"}. ${escapeHtml(c.fail)}</small>
                   </button>`
               )
               .join("")}
           </div>
-          <button class="btn primary xl" data-act="to-roll" ${game.currentChoiceId ? "" : "disabled"}>Tira il dado</button>
+          <button class="btn primary xl" data-act="to-roll" ${game.currentChoiceId ? "" : "disabled"}>Abbiamo scelto — tira il dado</button>
         `;
       } else if (game.phase === "roll") {
         const actor = playerById(game, sc.actors[game.currentActorIndex]);
@@ -452,7 +476,9 @@
           <article class="card parchment center">
             <p class="card-kicker">Dado</p>
             <h2>${escapeHtml(actor ? actor.name : "")}</h2>
-            <p>Serve <strong>${choice.target}+</strong> su un d6. Se esce di meno: −${choice.dmg} cuore.</p>
+            <p>Il dado ha 6 facce. Serve <strong>${choice.target} o più</strong>.</p>
+            <p class="path-ok">Se esce ${choice.target} o più: ${escapeHtml(choice.ok)}</p>
+            <p class="path-fail">Se esce di meno: perdi ${choice.dmg} ${choice.dmg === 1 ? "cuore" : "cuori"}. ${escapeHtml(choice.fail)}</p>
             <div class="die ${state.rolling ? "spin" : ""} ${state.lastRoll ? (state.lastRoll.ok ? "ok" : "bad") : ""}" aria-live="polite">${
               state.rolling ? "?" : state.lastRoll ? state.lastRoll.value : "⚀"
             }</div>
@@ -460,8 +486,8 @@
               state.lastRoll
                 ? `<p class="${state.lastRoll.ok ? "ok-text" : "bad-text"}">${
                     state.lastRoll.ok
-                      ? "Ce la fai!"
-                      : "Fallito…" + (state.lastRoll.deathText ? "<br>" + escapeHtml(state.lastRoll.deathText) : "")
+                      ? "Ce la fai! La storia prende questa strada."
+                      : "Non ce l'hai fatta." + (state.lastRoll.deathText ? "<br>" + escapeHtml(state.lastRoll.deathText) : " Perdi cuori, e la storia prende l'altra strada.")
                   }</p>
                    <button class="btn primary" data-act="roll-next">Avanti</button>`
                 : `<button class="btn primary xl" data-act="do-roll">Tira!</button>`
@@ -473,7 +499,7 @@
         const o = game.lastOutcome || { text: "", ok: true };
         body = `
           <article class="card parchment">
-            <p class="card-kicker">${o.ok ? "Ce l'avete fatta" : "Le cose si mettono male"}</p>
+            <p class="card-kicker">${o.ok ? "Questa strada" : "L'altra strada"}</p>
             <p class="story">${escapeHtml(o.text)}</p>
             <ul class="mini-log">${(o.rolls || [])
               .map((r) => {
@@ -482,7 +508,7 @@
               })
               .join("")}</ul>
           </article>
-          <button class="btn primary xl" data-act="to-master">Mostra l'esito al master</button>
+          <button class="btn primary xl" data-act="to-master">Passa il telefono al master: deve leggere come continua</button>
         `;
       }
     }
@@ -509,7 +535,7 @@
               }</li>`
           )
           .join("")}</ul>
-        <button class="btn primary xl" data-act="clear-end">Torna al portale</button>
+        <button class="btn primary xl" data-act="clear-end">Torna all'inizio</button>
       </section>`;
   }
 
@@ -545,7 +571,7 @@
     }
     if (act === "new" || act === "new-confirm") {
       if (act === "new-confirm") {
-        if (!confirm("Abbandonare l'avventura in sospeso? Non si potrà riprendere. Una nuova userà elementi diversi.")) return;
+        if (!confirm("Abbandonare questa avventura? Non si potrà riprendere. Una nuova userà pezzi di storia diversi.")) return;
         abandonActive();
       }
       state.view = "setup";

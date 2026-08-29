@@ -1,13 +1,13 @@
 (function (root) {
   const KIND_IT = {
-    danger: "Pericolo",
-    puzzle: "Enigma",
-    social: "Parole",
-    stealth: "Furtività",
+    danger: "Attenzione: pericolo",
+    puzzle: "Indovinello",
+    social: "Parlare",
+    stealth: "Nascondersi",
     chase: "Inseguimento",
-    help: "Soccorso",
-    moral: "Scelta",
-    explore: "Esplorazione"
+    help: "Aiutare",
+    moral: "Una scelta",
+    explore: "Cercare"
   };
 
   function fill(str, vars) {
@@ -137,7 +137,8 @@
       title: world.name,
       locationName: world.name,
       masterText: fill(opening, baseVars),
-      secret: "Lascia che i giocatori si presentino (nome + ruolo). Poi inizia la prima prova. Durata prevista: circa 30 minuti, 8 scene.",
+      playerText: "Il master sta raccontando dove siete, cosa dovete fare e chi è il cattivo. Ascoltate. Poi vi presenterete con nome e ruolo.",
+      secret: "Leggi ad alta voce, piano. Poi ogni giocatore dice nome e ruolo (li vedi sotto). Quando sono pronti, premi il bottone. Circa 30 minuti, 8 scene.",
       prompt: null,
       choices: [],
       who: "none",
@@ -157,6 +158,7 @@
         locationName: loc.name,
         locationId: loc.id,
         masterText: fill(ch.master, vars),
+        playerText: fill(ch.player || ch.prompt, vars),
         secret: fill(ch.secret, vars),
         prompt: fill(ch.prompt, vars),
         who: ch.who,
@@ -167,7 +169,9 @@
           target: c.target,
           dmg: c.dmg,
           ok: fill(c.ok, vars),
-          fail: fill(c.fail, vars)
+          fail: fill(c.fail, vars),
+          okNext: fill(c.okNext || "", vars),
+          failNext: fill(c.failNext || "", vars)
         }))
       });
     });
@@ -183,6 +187,7 @@
       locationName: climaxLoc.name,
       locationId: climaxLoc.id,
       masterText: fill(climax.master, cvars),
+      playerText: fill(climax.player || climax.prompt, cvars),
       secret: fill(climax.secret, cvars),
       prompt: fill(climax.prompt, cvars),
       who: "all",
@@ -193,7 +198,9 @@
         target: c.target,
         dmg: c.dmg,
         ok: fill(c.ok, cvars),
-        fail: fill(c.fail, cvars)
+        fail: fill(c.fail, cvars),
+        okNext: fill(c.okNext || "", cvars),
+        failNext: fill(c.failNext || "", cvars)
       })),
       groupSuccessNeeded: true
     });

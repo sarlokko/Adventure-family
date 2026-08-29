@@ -7,7 +7,7 @@ Portale di avventure **GDR per famiglie**. Ogni volta che apri una nuova storia,
 1. Un adulto (o chi se la sente) è il **master**: legge il quaderno, tiene i segreti, fa volare la storia.
 2. Gli altri sono i **giocatori** (da 1 a 6). All’inizio si sceglie quanti sono e i nomi.
 3. Si passa il telefono/tablet: vista Master e vista Giocatori.
-4. Le prove si risolvono con un **dado a 6 facce**. Serve un punteggio minimo (4+, 5+ o 6). Se fallisci perdi cuori.
+4. Le prove si risolvono con un **dado a 6 facce**. Serve un punteggio minimo (4, 5 o 6). Se fallisci **perdi cuori** e la storia prende **un’altra strada** (più difficile). Se riesci, la storia va avanti sulla strada migliore.
 5. A **0 cuori** il personaggio è fuori gioco (nella storia “muore” in modo da fiaba, non cruento).
 6. Se **cadono tutti**, l’avventura **fallisce**.
 

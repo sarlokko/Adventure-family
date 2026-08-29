@@ -172,6 +172,31 @@ test("choices always have target and damage", () => {
   }
 });
 
+test("every challenge has two distinct story paths", () => {
+  for (const ch of C.challenges) {
+    assert.ok(ch.player && ch.player.length > 20, ch.id + " missing player text");
+    assert.ok(ch.master && ch.master.includes("{location}"), ch.id + " master should say where you are");
+    for (const c of ch.choices) {
+      assert.ok(c.ok && c.ok.length > 40, ch.id + "/" + c.id + " ok too short");
+      assert.ok(c.fail && c.fail.length > 40, ch.id + "/" + c.id + " fail too short");
+      assert.notEqual(c.ok, c.fail);
+      assert.ok(c.okNext && c.okNext.length > 20, ch.id + "/" + c.id + " missing okNext");
+      assert.ok(c.failNext && c.failNext.length > 20, ch.id + "/" + c.id + " missing failNext");
+      assert.notEqual(c.okNext, c.failNext);
+    }
+  }
+});
+
+test("generated scenes carry player text and next-path lines", () => {
+  const g = makeGame(2);
+  const ch = g.scenes.find((s) => s.type === "challenge");
+  assert.ok(ch.playerText);
+  assert.ok(ch.choices[0].okNext);
+  assert.ok(ch.choices[0].failNext);
+  const intro = g.scenes[0];
+  assert.ok(intro.masterText.includes("DOVE SIETE") || intro.masterText.includes("missione") || intro.masterText.includes("MISSIONE"));
+});
+
 test("pickUnused prefers unused ids", () => {
   const pool = [
     { id: "a" },

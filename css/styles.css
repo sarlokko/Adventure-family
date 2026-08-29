@@ -203,6 +203,23 @@ input[type="text"] {
 }
 .choice span { display: block; font-weight: 800; }
 .choice em { display: block; margin-top: 4px; color: var(--muted); font-style: normal; font-size: 0.88rem; }
+.choice .path-ok, .choice .path-fail, .path-ok, .path-fail {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+.choice .path-ok, .path-ok { color: var(--ok); }
+.choice .path-fail, .path-fail { color: #e08a84; }
+.parchment .path-ok { color: #1f6b2a; }
+.parchment .path-fail { color: #8f2f2a; }
+.mission {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
 .choice.picked { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224, 177, 90, 0.35); }
 
 .center { text-align: center; }
