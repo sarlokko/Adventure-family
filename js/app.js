@@ -461,6 +461,8 @@
     if (sc.type === "intro") {
       return `<section class="screen play">${hud(game)}
         <article class="card parchment">
+          <p class="card-kicker">Spedizione</p>
+          <h2>${escapeHtml(game.title)}</h2>
           ${storyHtml(sc.story, game, true)}
           <p class="who">Giocano: <strong>${escapeHtml(game.players.map((p) => p.name).join(", "))}</strong></p>
         </article>

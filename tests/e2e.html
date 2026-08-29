@@ -35,6 +35,25 @@
         if (!document.querySelector("[data-act='intro-next']")) throw new Error("no intro");
         if (!document.body.innerText.includes("Luca")) throw new Error("manca giocatore");
         if (document.body.innerText.toLowerCase().includes("vista master")) throw new Error("master view still there");
+        if (/si rivede a cena|strega/i.test(document.body.innerText)) throw new Error("testo da fiaba");
+        if (!/avanzamento\s*0\s*\/\s*5/i.test(document.body.innerText)) throw new Error("manca avanzamento 0/5");
+        const titles = [
+          "Giungla mortale",
+          "La maledizione del faraone",
+          "Sperduto nello spazio",
+          "La montagna ghiacciata",
+          "Naufragio",
+          "Il deserto bianco"
+        ];
+        const g0 = AF_STORAGE.getActive();
+        if (!titles.some((t) => document.body.innerText.includes(t) || (g0 && g0.title === t))) {
+          throw new Error(
+            "titolo non è una spedizione title=" +
+              (g0 && g0.title) +
+              " text=" +
+              document.body.innerText.replace(/\s+/g, " ").slice(0, 280)
+          );
+        }
         click("intro-next");
         const choice = document.querySelector("[data-act='pick']");
         if (!choice) throw new Error("no choice acts=" + acts());
@@ -78,7 +97,37 @@
         if (!document.querySelector("[data-act='pick']")) {
           throw new Error("niente scena dopo acts=" + acts());
         }
-        out.textContent = "E2E_OK " + (g.title || "");
+        if (!/avanzamento\s*1\s*\/\s*5/i.test(document.body.innerText)) throw new Error("hud non è 1/5 dopo il verde");
+        const hpAfterGreen = AF_STORAGE.getActive().players.map((p) => p.hp);
+        document.querySelector("[data-act='pick']").click();
+        AF_APP.state.forceColor = "red";
+        click("do-spin");
+        found = false;
+        for (let i = 0; i < 30; i++) {
+          await sleep(200);
+          if (document.querySelector("[data-act='scene-next']")) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) throw new Error("rosso: bussola non ha finito acts=" + acts());
+        if (!/rosso/i.test(document.body.innerText)) throw new Error("manca esito rosso");
+        if (!/non avanzate/i.test(document.body.innerText)) throw new Error("manca differenza rosso/non avanzate");
+        const afterRed = AF_STORAGE.getActive();
+        if (afterRed.progress !== 1) throw new Error("rosso non deve avanzare, progress=" + afterRed.progress);
+        const hpAfterRed = afterRed.players.map((p) => p.hp);
+        if (hpAfterRed.reduce((a, b) => a + b, 0) >= hpAfterGreen.reduce((a, b) => a + b, 0)) {
+          throw new Error("rosso deve togliere una vita");
+        }
+        click("scene-next");
+        const afterNext = AF_STORAGE.getActive();
+        if (afterNext.status !== "ongoing") throw new Error("la storia non deve chiudersi");
+        if (afterNext.progress !== 1) throw new Error("dopo il rosso progress deve restare 1");
+        if (!document.querySelector("[data-act='pick']")) throw new Error("dopo il rosso deve esserci un'altra prova");
+        if (document.body.innerText.includes("1 / 8") || /cattivo:/i.test(document.body.innerText)) {
+          throw new Error("hud vecchio 8 scene / cattivo");
+        }
+        out.textContent = "E2E_OK " + (afterNext.title || "") + " p=" + afterNext.progress;
       } catch (err) {
         out.textContent = "E2E_FAIL " + err.message;
       }
