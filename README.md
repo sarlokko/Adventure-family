@@ -7,7 +7,7 @@ Storie da leggere ad alta voce in famiglia, sul telefono o sul tablet. Ogni nuov
 Un solo schermo, tutti insieme. Non serve un master.
 
 1. Si scelgono i nomi (da 1 a 6 bambini). Un adulto può tenere il telefono e leggere.
-2. Si legge una frase alla volta.
+2. Si legge un pezzo di racconto, come un libro.
 3. Chi ha il turno sceglie **una** delle due azioni.
 4. Si gira la **bussola**:
    - **verde**: l’azione riesce, la storia va avanti bene

@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <title>AF e2e</title>
-  <link rel="stylesheet" href="../css/styles.css?v=bussola3" />
+  <link rel="stylesheet" href="../css/styles.css?v=libro1" />
 </head>
 <body>
   <pre id="e2e-out">running…</pre>
   <div id="app"></div>
-  <script src="../js/content.js?v=bussola3"></script>
-  <script src="../js/rng.js?v=bussola3"></script>
-  <script src="../js/storage.js?v=bussola3"></script>
-  <script src="../js/generator.js?v=bussola3"></script>
-  <script src="../js/app.js?v=bussola3"></script>
+  <script src="../js/content.js?v=libro1"></script>
+  <script src="../js/rng.js?v=libro1"></script>
+  <script src="../js/storage.js?v=libro1"></script>
+  <script src="../js/generator.js?v=libro1"></script>
+  <script src="../js/app.js?v=libro1"></script>
   <script>
     (async function () {
       const out = document.getElementById("e2e-out");
@@ -40,8 +40,10 @@
         if (!choice) throw new Error("no choice acts=" + acts());
         choice.click();
         if (!document.querySelector("[data-act='do-spin']")) throw new Error("no compass acts=" + acts());
-        AF_RNG.spinCompass = function () {
-          return { color: "green", needle: 60, rotation: 6 * 360 + 300 };
+        AF_RNG.spinCompass = function (rand, current) {
+          return AF_RNG.spinCompassToColor("green", current || 0, function () {
+            return 0.5;
+          });
         };
         AF_APP.state.forceColor = "green";
         click("do-spin");

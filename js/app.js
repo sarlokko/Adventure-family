@@ -225,6 +225,7 @@
       deathText,
       color
     };
+    state.lastSpin = { color, playerName: actor.name };
     game.pathNote = ok ? choice.greenNext || "" : choice.redNext || "";
     game.phase = "result";
     save(game);
@@ -241,22 +242,31 @@
     state.lastSpin = null;
     render();
     const rand = AF_RNG.rng((game.seed ^ (Date.now() & 0xffff) ^ (game.rolls.length * 7919)) >>> 0);
-    let spin = AF_RNG.spinCompass(rand);
-    if (state.forceColor) {
-      const color = state.forceColor;
-      const [a, b] = AF_RNG.COMPASS[color];
-      const needle = (a + b) / 2;
-      spin = { color, needle, rotation: 6 * 360 + (360 - needle) };
-      state.forceColor = null;
+    const from = state.wheelDeg;
+    let spin = state.forceColor
+      ? AF_RNG.spinCompassToColor(state.forceColor, from, rand)
+      : AF_RNG.spinCompass(rand, from);
+    state.forceColor = null;
+    const to = from + spin.rotation;
+    const el = document.querySelector(".compass");
+    const ms = AF_RNG.SPIN_MS || 1700;
+    if (el) {
+      el.style.transition = "none";
+      el.style.transform = "rotate(" + from + "deg)";
+      void el.offsetWidth;
+      requestAnimationFrame(function () {
+        el.style.transition = "transform " + ms / 1000 + "s cubic-bezier(0.12, 0.7, 0.08, 1)";
+        el.style.transform = "rotate(" + to + "deg)";
+        state.wheelDeg = to;
+      });
+    } else {
+      state.wheelDeg = to;
     }
-    requestAnimationFrame(function () {
-      state.wheelDeg += spin.rotation;
-      render();
-      setTimeout(function () {
-        state.spinning = false;
-        applySpin(game, spin.color);
-      }, 2400);
-    });
+    setTimeout(function () {
+      state.wheelDeg = to;
+      state.spinning = false;
+      applySpin(game, AF_RNG.colorFromWheel(to));
+    }, ms + 60);
   }
 
   function hearts(n, max) {
@@ -282,7 +292,7 @@
         <div class="hero">
           <p class="eyebrow">Storia in famiglia</p>
           <h1>Adventure Family</h1>
-          <p class="lead">Si legge una frase. Si sceglie cosa fare. Si gira la bussola. Verde: ok. Giallo: ancora. Rosso: un cuore in meno. Circa mezz'ora.</p>
+          <p class="lead">Una storia da leggere ad alta voce. Si sceglie cosa fare, si gira la bussola, e il racconto cambia. Verde: l'azione riesce. Giallo: si gira ancora. Rosso: un cuore in meno. Circa mezz'ora.</p>
         </div>
         ${
           pending
@@ -367,29 +377,42 @@
     `;
   }
 
-  function compassHtml(game) {
+  function compassHtml(game, opts) {
+    const frozen = opts && opts.frozen;
     const actor = currentActor(game);
-    const spinning = state.spinning;
+    const spinning = state.spinning && !frozen;
     const last = state.lastSpin;
-    const yellow = last && last.color === "yellow";
+    const yellow = !frozen && last && last.color === "yellow";
+    const landed = frozen && last && last.color;
+    const landLabel = landed === "green" ? "verde" : landed === "red" ? "rosso" : landed === "yellow" ? "giallo" : "";
     return `
       <div class="compass-block">
-        <p class="who">Tocca a <strong>${escapeHtml(actor ? actor.name : "")}</strong>. Gira la bussola.</p>
+        ${
+          frozen
+            ? `<p class="who">La bussola si è fermata sul <strong>${landLabel}</strong>.</p>`
+            : `<p class="who">Tocca a <strong>${escapeHtml(actor ? actor.name : "")}</strong>. Gira la bussola.</p>`
+        }
         <div class="legend">
-          <span class="lg"><i class="dot green"></i> verde: ok</span>
+          <span class="lg"><i class="dot green"></i> verde: riesce</span>
           <span class="lg"><i class="dot yellow"></i> giallo: ancora</span>
           <span class="lg"><i class="dot red"></i> rosso: −1 cuore</span>
         </div>
-        <div class="compass-wrap" ${spinning ? "" : 'data-act="do-spin" role="button" tabindex="0"'}>
+        <div class="compass-wrap" ${spinning || frozen ? "" : 'data-act="do-spin" role="button" tabindex="0"'}>
           <div class="needle" aria-hidden="true"></div>
-          <div class="compass ${spinning ? "moving" : ""}" style="transform: rotate(${state.wheelDeg}deg)"></div>
+          <div class="compass ${spinning ? "moving" : ""}" style="transform: rotate(${state.wheelDeg}deg)">
+            <span class="lab lab-g"><span>verde</span></span>
+            <span class="lab lab-y"><span>giallo</span></span>
+            <span class="lab lab-r"><span>rosso</span></span>
+          </div>
         </div>
         ${
-          spinning
-            ? `<p class="fine">Gira…</p>`
-            : yellow
-              ? `<p class="spin-yellow">Giallo. Ancora.</p><button class="btn primary xl" data-act="do-spin">Gira ancora</button>`
-              : `<button class="btn primary xl" data-act="do-spin">Gira</button>`
+          frozen
+            ? ""
+            : spinning
+              ? `<p class="fine">Gira…</p>`
+              : yellow
+                ? `<p class="spin-yellow">Giallo: la bussola chiede un altro giro.</p><button class="btn primary xl" data-act="do-spin">Gira ancora</button>`
+                : `<button class="btn primary xl" data-act="do-spin">Gira</button>`
         }
       </div>`;
   }
@@ -424,8 +447,9 @@
     if (game.phase === "result") {
       const o = game.lastOutcome || { text: "", ok: true };
       return `<section class="screen play">${hud(game)}
+        ${compassHtml(game, { frozen: true })}
         <article class="card parchment">
-          <p class="card-kicker">${o.ok ? "Verde" : "Rosso"}</p>
+          <p class="card-kicker">${o.color === "red" ? "Rosso" : "Verde"}</p>
           ${storyHtml([o.text].concat(o.deathText ? [o.deathText] : []), game)}
         </article>
         <button class="btn primary xl" data-act="scene-next">Avanti</button>

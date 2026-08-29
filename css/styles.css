@@ -190,9 +190,9 @@ input[type="text"] {
 .secret summary { cursor: pointer; font-weight: 800; }
 .who { margin-top: 12px; font-size: 1.05rem; }
 .parchment .line {
-  margin: 0 0 0.65em;
-  font-size: 1.14rem;
-  line-height: 1.4;
+  margin: 0 0 0.85em;
+  font-size: 1.12rem;
+  line-height: 1.58;
 }
 .parchment .line:last-child { margin-bottom: 0; }
 .parchment .kicker-line {
@@ -259,22 +259,22 @@ input[type="text"] {
 .dot.red { background: var(--berry); }
 .compass-wrap {
   position: relative;
-  width: min(240px, 72vw);
-  height: min(240px, 72vw);
+  width: min(260px, 74vw);
+  height: min(260px, 74vw);
   margin: 8px auto 16px;
   cursor: pointer;
 }
 .compass-wrap[data-act] { outline: none; }
 .needle {
   position: absolute;
-  top: -6px;
+  top: -10px;
   left: 50%;
-  z-index: 2;
+  z-index: 3;
   width: 0;
   height: 0;
-  border-left: 12px solid transparent;
-  border-right: 12px solid transparent;
-  border-top: 22px solid #f7f1e3;
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-top: 26px solid #f7f1e3;
   transform: translateX(-50%);
   filter: drop-shadow(0 2px 2px rgba(0,0,0,0.45));
   pointer-events: none;
@@ -284,14 +284,15 @@ input[type="text"] {
   height: 100%;
   border-radius: 50%;
   border: 7px solid #f4ead6;
+  overflow: hidden;
   background: conic-gradient(
-    from -90deg,
+    from 0deg,
     #5dad55 0deg 120deg,
     #e0b15a 120deg 240deg,
     #b04a45 240deg 360deg
   );
   box-shadow: inset 0 0 0 10px rgba(0,0,0,0.08), 0 10px 0 rgba(0,0,0,0.22), var(--shadow);
-  transition: transform 2.4s cubic-bezier(0.12, 0.72, 0.08, 1);
+  /* transition is set in JS during a spin so the first paint isn't skipped */
 }
 .compass::after {
   content: "";
@@ -300,8 +301,34 @@ input[type="text"] {
   border-radius: 50%;
   background: #f4ead6;
   box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+  z-index: 1;
 }
 .compass-wrap .compass { position: relative; }
+.lab {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.lab span {
+  position: absolute;
+  left: -2.3em;
+  top: -6.1em;
+  width: 4.6em;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+}
+.lab-g { transform: rotate(60deg); }
+.lab-y { transform: rotate(180deg); }
+.lab-r { transform: rotate(300deg); }
 .spin-yellow {
   color: var(--gold-2);
   font-weight: 800;

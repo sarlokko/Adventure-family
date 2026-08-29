@@ -175,18 +175,19 @@ test("choices have green/red paths, no dice target", () => {
   }
 });
 
-test("every challenge is three story lines plus two short choices", () => {
+test("every challenge is a short chapter with two paths", () => {
   for (const ch of C.challenges) {
     assert.ok(Array.isArray(ch.story) && ch.story.length === 3, ch.id + " story");
     assert.ok(ch.story[0].includes("{location}"), ch.id + " must say where");
+    assert.ok(ch.story.join("").length > 200, ch.id + " story too thin");
     assert.equal(ch.choices.length, 2);
     for (const c of ch.choices) {
       assert.ok(c.label && c.label.length <= 40, ch.id + "/" + c.id + " label too long");
-      assert.ok(c.green && c.green.length >= 8, ch.id + "/" + c.id + " green");
-      assert.ok(c.red && c.red.length >= 8, ch.id + "/" + c.id + " red");
+      assert.ok(c.green && c.green.length >= 80, ch.id + "/" + c.id + " green too thin");
+      assert.ok(c.red && c.red.length >= 80, ch.id + "/" + c.id + " red too thin");
       assert.notEqual(c.green, c.red);
-      assert.ok(c.greenNext && c.greenNext.length >= 8, ch.id + "/" + c.id + " greenNext");
-      assert.ok(c.redNext && c.redNext.length >= 8, ch.id + "/" + c.id + " redNext");
+      assert.ok(c.greenNext && c.greenNext.length >= 40, ch.id + "/" + c.id + " greenNext");
+      assert.ok(c.redNext && c.redNext.length >= 40, ch.id + "/" + c.id + " redNext");
       assert.notEqual(c.greenNext, c.redNext);
     }
   }
@@ -200,7 +201,7 @@ test("generated scenes carry story lines and next-path lines", () => {
   assert.ok(ch.choices[0].redNext);
   const intro = g.scenes[0];
   const blob = intro.story.join(" ");
-  assert.ok(blob.includes("Dove siete") || blob.includes("bussola"));
+  assert.ok(blob.includes("bussola") && blob.includes("ad alta voce"));
 });
 
 test("actor placeholder stays until play, then becomes the name", () => {
@@ -232,13 +233,18 @@ test("compass colors from needle angle", () => {
   assert.equal(RNG.colorFromNeedle(-10), "red");
 });
 
-test("spinCompass lands on its own color", () => {
+test("wheel rotation matches the color under the pointer", () => {
+  assert.equal(RNG.colorFromWheel(0), "green");
+  assert.equal(RNG.colorFromWheel(360 - 60), "green");
+  assert.equal(RNG.colorFromWheel(360 - 180), "yellow");
+  assert.equal(RNG.colorFromWheel(360 - 300), "red");
   const rand = RNG.rng(11);
+  let wheel = 0;
   const seen = { green: 0, yellow: 0, red: 0 };
   for (let i = 0; i < 60; i++) {
-    const s = RNG.spinCompass(rand);
-    assert.equal(s.color, RNG.colorFromNeedle(s.needle));
-    assert.ok(s.rotation >= 5 * 360);
+    const s = RNG.spinCompass(rand, wheel);
+    wheel += s.rotation;
+    assert.equal(RNG.colorFromWheel(wheel), s.color, "spin " + i + " " + s.color);
     seen[s.color] += 1;
   }
   assert.ok(seen.green > 0 && seen.yellow > 0 && seen.red > 0);
