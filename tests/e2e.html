@@ -19,60 +19,59 @@
       function click(act, id) {
         const sel = id ? `[data-act="${act}"][data-id="${id}"]` : `[data-act="${act}"]`;
         const btn = document.querySelector(sel);
-        if (!btn) throw new Error("manca " + sel + " html=" + document.getElementById("app").innerText.slice(0, 180));
+        if (!btn) throw new Error("manca " + sel + " html=" + document.getElementById("app").innerText.slice(0, 220));
         btn.click();
       }
       function sleep(ms) {
         return new Promise((r) => setTimeout(r, ms));
       }
+      function acts() {
+        return [...document.querySelectorAll("[data-act]")].map((b) => b.getAttribute("data-act")).join(",");
+      }
       try {
         AF_STORAGE.setActive(null);
         AF_STORAGE.resetUsed();
-        AF_APP.startNew("Nonna", ["Luca", "Mia"]);
+        AF_APP.startNew("", ["Luca", "Mia"]);
         if (!document.querySelector("[data-act='intro-next']")) throw new Error("no intro");
         if (!document.body.innerText.includes("Luca")) throw new Error("manca giocatore");
+        if (document.body.innerText.toLowerCase().includes("vista master")) throw new Error("master view still there");
         click("intro-next");
-        click("to-players");
         const choice = document.querySelector("[data-act='pick']");
-        if (!choice) throw new Error("no choice");
+        if (!choice) throw new Error("no choice acts=" + acts());
         choice.click();
-      click("to-roll");
-      click("do-roll");
-      let found = false;
-      for (let i = 0; i < 25; i++) {
-        await sleep(200);
-        if (document.querySelector("[data-act='roll-next']")) {
-          found = true;
-          break;
+        if (!document.querySelector("[data-act='do-spin']")) throw new Error("no compass acts=" + acts());
+        AF_APP.state.forceColor = "green";
+        click("do-spin");
+        let found = false;
+        for (let i = 0; i < 30; i++) {
+          await sleep(200);
+          if (document.querySelector("[data-act='scene-next']")) {
+            found = true;
+            break;
+          }
         }
-      }
-      if (!found) {
-        const acts = [...document.querySelectorAll("[data-act]")].map((b) => b.getAttribute("data-act")).join(",");
-        throw new Error(
-          "dado non ha finito acts=" +
-            acts +
-            " view=" +
-            AF_APP.state.view +
-            " role=" +
-            AF_APP.state.role +
-            " phase=" +
-            (AF_STORAGE.getActive() && AF_STORAGE.getActive().phase) +
-            " rolling=" +
-            AF_APP.state.rolling +
-            " last=" +
-            JSON.stringify(AF_APP.state.lastRoll)
-        );
-      }
-        click("roll-next");
-        if (document.querySelector("[data-act='do-roll']")) {
-          click("do-roll");
-          await sleep(1200);
-          click("roll-next");
+        if (!found) {
+          throw new Error(
+            "bussola non ha finito acts=" +
+              acts() +
+              " view=" +
+              AF_APP.state.view +
+              " phase=" +
+              (AF_STORAGE.getActive() && AF_STORAGE.getActive().phase) +
+              " spinning=" +
+              AF_APP.state.spinning +
+              " last=" +
+              JSON.stringify(AF_APP.state.lastSpin)
+          );
         }
-        if (!document.querySelector("[data-act='to-master']") && !document.body.innerText.includes("Avventura fallita")) {
-          throw new Error("niente esito");
+        if (!document.body.innerText.includes("Verde")) throw new Error("manca esito verde");
+        click("scene-next");
+        const g = AF_STORAGE.getActive();
+        if (!g || g.sceneIndex < 1) throw new Error("non è andata alla scena dopo");
+        if (!document.querySelector("[data-act='pick']") && !document.body.innerText.includes("Avventura")) {
+          throw new Error("niente scena dopo acts=" + acts());
         }
-        out.textContent = "E2E_OK " + (AF_STORAGE.getActive().title || "");
+        out.textContent = "E2E_OK " + (g.title || "");
       } catch (err) {
         out.textContent = "E2E_FAIL " + err.message;
       }

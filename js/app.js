@@ -6,11 +6,12 @@
     setupCount: 3,
     setupMaster: "",
     setupNames: ["", "", "", "", "", ""],
-    role: "master",
-    rolling: false,
-    lastRoll: null,
+    spinning: false,
+    lastSpin: null,
+    wheelDeg: 0,
     toast: null,
-    game: null
+    game: null,
+    forceColor: null
   };
 
   function save(game) {
@@ -35,7 +36,7 @@
         state.toast = null;
         render();
       }
-    }, 3200);
+    }, 2800);
   }
 
   function beep(kind) {
@@ -45,8 +46,8 @@
       const g = ctx.createGain();
       o.connect(g);
       g.connect(ctx.destination);
-      o.type = kind === "fail" ? "sawtooth" : kind === "death" ? "square" : "triangle";
-      o.frequency.value = kind === "ok" ? 660 : kind === "fail" ? 180 : kind === "death" ? 90 : 440;
+      o.type = kind === "red" ? "sawtooth" : kind === "death" ? "square" : kind === "yellow" ? "sine" : "triangle";
+      o.frequency.value = kind === "green" ? 660 : kind === "red" ? 180 : kind === "death" ? 90 : 330;
       g.gain.value = 0.04;
       o.start();
       g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
@@ -58,31 +59,42 @@
     return game.scenes[game.sceneIndex];
   }
 
-  function refreshActors(game) {
-    const sc = scene(game);
-    if (!sc || sc.who === "none" || sc.type === "intro" || sc.type === "ending") return;
-    const alive = AF_GEN.alivePlayers(game);
-    const valid = (sc.actors || []).filter((id) => alive.some((p) => p.id === id));
-    if (valid.length) {
-      sc.actors = valid;
-      return;
-    }
-    const rand = AF_RNG.rng((game.seed + game.sceneIndex * 97) >>> 0);
-    sc.actors = AF_GEN.chooseActors(game.players, sc.who === "all" || sc.type === "climax" ? "all" : sc.who, rand, game.sceneIndex);
-  }
-
   function playerById(game, id) {
     return game.players.find((p) => p.id === id);
   }
 
-  function namesOf(game, ids) {
-    return ids.map((id) => playerById(game, id)?.name || id);
+  function currentActor(game) {
+    const sc = scene(game);
+    if (!sc || !sc.actors || !sc.actors.length) return null;
+    refreshActor(game);
+    return playerById(game, sc.actors[0]);
+  }
+
+  function refreshActor(game) {
+    const sc = scene(game);
+    if (!sc || sc.type === "intro" || sc.type === "ending") return;
+    const alive = AF_GEN.alivePlayers(game);
+    if (!alive.length) {
+      sc.actors = [];
+      return;
+    }
+    const still = (sc.actors || []).map((id) => playerById(game, id)).find((p) => p && p.hp > 0);
+    if (still) {
+      sc.actors = [still.id];
+      return;
+    }
+    sc.actors = AF_GEN.chooseActor(game.players, game.sceneIndex);
+  }
+
+  function withActor(text, game) {
+    const p = currentActor(game);
+    return AF_GEN.fill(text || "", { actor: p ? p.name : "qualcuno" });
   }
 
   function startNew(masterName, playerNames) {
     const used = AF_STORAGE.getUsed();
     const game = AF_GEN.generate({
-      masterName: masterName.trim() || "Master",
+      masterName: (masterName || "").trim(),
       players: playerNames.map((n) => ({ name: n })),
       used
     });
@@ -91,10 +103,9 @@
     AF_STORAGE.setActive(game);
     state.game = game;
     state.view = "play";
-    state.role = "master";
-    if (game.resets.length) {
-      toast("Alcuni mazzi erano finiti (" + game.resets.join(", ") + "). Li ho rimescolati: la storia resta nuova.");
-    }
+    state.lastSpin = null;
+    state.wheelDeg = 0;
+    if (game.resets.length) toast("Alcuni pezzi erano già usati. Li ho rimescolati.");
     render();
   }
 
@@ -112,14 +123,16 @@
     state.game = null;
   }
 
+  function storyHtml(lines) {
+    return (lines || []).map((s) => `<p class="line">${escapeHtml(s)}</p>`).join("");
+  }
+
   function finish(game, outcome) {
     game.status = outcome === "win" ? "won" : outcome === "flee" ? "fled" : "failed";
     game.outcome = outcome;
     game.phase = "end";
     const last = game.scenes[game.scenes.length - 1];
-    if (outcome === "win") last.masterText = game.endings.win;
-    else if (outcome === "flee") last.masterText = game.endings.flee;
-    else last.masterText = game.endings.fail;
+    last.story = outcome === "win" ? game.endings.win : outcome === "flee" ? game.endings.flee : game.endings.fail;
     game.sceneIndex = game.scenes.length - 1;
     AF_STORAGE.pushArchive({
       id: game.id,
@@ -130,6 +143,7 @@
     });
     AF_STORAGE.setActive(game);
     state.game = game;
+    state.view = "end";
   }
 
   function goNextScene(game) {
@@ -139,152 +153,108 @@
       render();
       return;
     }
+    if (!AF_GEN.alivePlayers(game).length) {
+      finish(game, "tpk");
+      save(game);
+      render();
+      return;
+    }
     const sc = scene(game);
     if (sc && sc.type === "climax" && game.phase === "result") {
-      const alive = AF_GEN.alivePlayers(game);
-      if (!alive.length) {
-        finish(game, "tpk");
-        state.view = "end";
-        save(game);
-        render();
-        return;
-      }
-      const rolls = game.rolls.filter((r) => r.sceneId === sc.id);
-      const successes = rolls.filter((r) => r.ok).length;
-      const needed = Math.ceil(Math.max(1, rolls.length) / 2);
-      if (successes >= needed) finish(game, "win");
+      if (game.lastOutcome && game.lastOutcome.ok) finish(game, "win");
       else finish(game, "flee");
-      state.view = "end";
       save(game);
       render();
       return;
     }
     game.sceneIndex += 1;
-    game.phase = "master";
+    game.phase = "choose";
     game.currentChoiceId = null;
-    game.currentActorIndex = 0;
+    state.lastSpin = null;
     const next = scene(game);
     if (next && game.pathNote) {
-      next.incoming = game.pathNote;
-      next.masterText = game.pathNote + "\n\n" + next.masterText;
-      if (next.playerText) next.playerText = game.pathNote + " " + next.playerText;
+      next.story = [game.pathNote].concat(next.story || []);
       game.pathNote = null;
     }
     if (next && next.type === "ending") {
-      const alive = AF_GEN.alivePlayers(game);
-      finish(game, alive.length ? "win" : "tpk");
-      state.view = "end";
+      finish(game, AF_GEN.alivePlayers(game).length ? "win" : "tpk");
     } else {
-      refreshActors(game);
+      refreshActor(game);
     }
     save(game);
     render();
   }
 
-  function resolveCurrentRolls(game) {
+  function applySpin(game, color) {
     const sc = scene(game);
+    const actor = currentActor(game);
     const choice = sc.choices.find((c) => c.id === game.currentChoiceId);
-    const rolls = game.rolls.filter((r) => r.sceneId === sc.id && r.choiceId === choice.id);
-    const anyOk = rolls.some((r) => r.ok);
-    const allFail = rolls.length && rolls.every((r) => !r.ok);
-    let pathOk = anyOk;
-    if (sc.type === "climax") {
-      const needed = Math.ceil(Math.max(1, rolls.length) / 2);
-      pathOk = rolls.filter((r) => r.ok).length >= needed;
+    if (!actor || !choice) return;
+
+    if (color === "yellow") {
+      beep("yellow");
+      state.lastSpin = { color: "yellow", playerName: actor.name };
+      game.phase = "spin";
+      save(game);
+      render();
+      return;
+    }
+
+    const ok = color === "green";
+    const rec = { sceneId: sc.id, choiceId: choice.id, playerId: actor.id, color, ok, dmg: ok ? 0 : choice.dmg };
+    game.rolls.push(rec);
+    let deathText = null;
+    if (!ok) {
+      const res = AF_GEN.damagePlayer(game, actor.id, choice.dmg, AF_RNG.rng(game.seed));
+      if (res.died) deathText = actor.outLine;
+      beep(res.died ? "death" : "red");
+    } else {
+      beep("green");
     }
     game.lastOutcome = {
-      text: pathOk ? choice.ok : choice.fail,
-      ok: pathOk,
-      allFail,
-      rolls
+      text: withActor(ok ? choice.green : choice.red, game),
+      ok,
+      deathText,
+      color
     };
-    game.pathNote = pathOk ? choice.okNext || "" : choice.failNext || "";
+    game.pathNote = ok ? choice.greenNext || "" : choice.redNext || "";
     game.phase = "result";
-    if (AF_GEN.checkTpk(game)) {
-      finish(game, "tpk");
-      state.view = "end";
-    }
     save(game);
     render();
   }
 
-  function rollForCurrentActor(game) {
-    if (state.rolling) return;
+  function doSpin(game) {
+    if (state.spinning) return;
     const sc = scene(game);
-    refreshActors(game);
-    const actorId = sc.actors[game.currentActorIndex];
-    const player = playerById(game, actorId);
-    const choice = sc.choices.find((c) => c.id === game.currentChoiceId);
-    if (!player || !choice) return;
-    state.rolling = true;
-    state.lastRoll = null;
+    if (!game.currentChoiceId || !sc.choices.length) return;
+    refreshActor(game);
+    if (!currentActor(game)) return;
+    state.spinning = true;
+    state.lastSpin = null;
     render();
     const rand = AF_RNG.rng((game.seed ^ (Date.now() & 0xffff) ^ (game.rolls.length * 7919)) >>> 0);
-    const value = AF_RNG.rollD6(rand);
-    setTimeout(() => {
-      const ok = value >= choice.target;
-      const rec = { sceneId: sc.id, choiceId: choice.id, playerId: player.id, value, target: choice.target, ok, dmg: ok ? 0 : choice.dmg };
-      game.rolls.push(rec);
-      let deathText = null;
-      if (!ok) {
-        const res = AF_GEN.damagePlayer(game, player.id, choice.dmg, rand);
-        if (res.died) deathText = player.outLine;
-        beep(res.died ? "death" : "fail");
-      } else {
-        beep("ok");
-      }
-      game.log.push({
-        t: Date.now(),
-        kind: ok ? "ok" : "fail",
-        text: player.name + " tira " + value + " (serve " + choice.target + "+): " + (ok ? "ce la fa" : "fallisce"),
-        playerId: player.id
-      });
-      state.lastRoll = { value, ok, deathText, playerName: player.name, target: choice.target };
-      state.rolling = false;
-      save(game);
+    let spin = AF_RNG.spinCompass(rand);
+    if (state.forceColor) {
+      const color = state.forceColor;
+      const [a, b] = AF_RNG.COMPASS[color];
+      const needle = (a + b) / 2;
+      spin = { color, needle, rotation: 6 * 360 + (360 - needle) };
+      state.forceColor = null;
+    }
+    requestAnimationFrame(function () {
+      state.wheelDeg += spin.rotation;
       render();
-    }, 650);
-  }
-
-  function afterRollContinue(game) {
-    const sc = scene(game);
-    refreshActors(game);
-    game.currentActorIndex += 1;
-    state.lastRoll = null;
-    const remaining = sc.actors.slice(game.currentActorIndex).filter((id) => playerById(game, id)?.hp > 0);
-    if (AF_GEN.checkTpk(game)) {
-      finish(game, "tpk");
-      state.view = "end";
-      save(game);
-      render();
-      return;
-    }
-    if (!remaining.length) {
-      resolveCurrentRolls(game);
-      return;
-    }
-    while (game.currentActorIndex < sc.actors.length && playerById(game, sc.actors[game.currentActorIndex])?.hp <= 0) {
-      game.currentActorIndex += 1;
-    }
-    if (game.currentActorIndex >= sc.actors.length) {
-      resolveCurrentRolls(game);
-      return;
-    }
-    game.phase = "roll";
-    save(game);
-    render();
+      setTimeout(function () {
+        state.spinning = false;
+        applySpin(game, spin.color);
+      }, 2400);
+    });
   }
 
   function hearts(n, max) {
     let s = "";
     for (let i = 0; i < max; i++) s += i < n ? "♥" : "♡";
     return s;
-  }
-
-  function el(html) {
-    const t = document.createElement("template");
-    t.innerHTML = html.trim();
-    return t.content;
   }
 
   function escapeHtml(s) {
@@ -298,47 +268,40 @@
   function renderHome() {
     const active = (state.game && state.game.status === "ongoing" ? state.game : null) || AF_STORAGE.getActive();
     const archive = AF_STORAGE.getArchive();
-    const used = AF_STORAGE.getUsed();
-    const usedCount = Object.values(used).reduce((a, b) => a + b.length, 0);
     const pending = active && active.status === "ongoing";
     return `
       <section class="screen home">
         <div class="hero">
-          <p class="eyebrow">Portale GDR per famiglie</p>
+          <p class="eyebrow">Storia in famiglia</p>
           <h1>Adventure Family</h1>
-          <p class="lead">Una storia da giocare in famiglia, circa mezz'ora. Un adulto legge. I bambini scelgono cosa fare e tirano un dado. Ogni avventura è diversa. Si può anche perdere.</p>
+          <p class="lead">Si legge una frase. Si sceglie cosa fare. Si gira la bussola. Verde: ok. Giallo: ancora. Rosso: un cuore in meno. Circa mezz'ora.</p>
         </div>
         ${
           pending
             ? `<div class="card warn">
                 <p class="card-kicker">In sospeso</p>
                 <h2>${escapeHtml(active.title)}</h2>
-                <p>Scena ${active.sceneIndex + 1} di ${active.scenes.length} · ${escapeHtml(active.masterName)} master · ${active.players.length} giocatori</p>
+                <p>Punto ${active.sceneIndex + 1} di ${active.scenes.length}</p>
                 <div class="row">
-                  <button class="btn primary" data-act="continue">Continua l'avventura</button>
-                  <button class="btn ghost" data-act="new-confirm">Nuova (abbandona questa)</button>
+                  <button class="btn primary" data-act="continue">Continua</button>
+                  <button class="btn ghost" data-act="new-confirm">Nuova storia</button>
                 </div>
               </div>`
             : `<div class="row">
-                <button class="btn primary xl" data-act="new">Nuova avventura</button>
+                <button class="btn primary xl" data-act="new">Nuova storia</button>
               </div>`
         }
-        <p class="meta">Elementi già usati: ${usedCount} · Avventure in archivio: ${archive.length}</p>
         ${
           archive.length
             ? `<div class="archive">
                 <h3>Ultime storie</h3>
                 <ul>${archive
                   .slice(0, 6)
-                  .map(
-                    (a) =>
-                      `<li><strong>${escapeHtml(a.title)}</strong> <span>${escapeHtml(a.result)}</span></li>`
-                  )
+                  .map((a) => `<li><strong>${escapeHtml(a.title)}</strong> <span>${escapeHtml(a.result)}</span></li>`)
                   .join("")}</ul>
               </div>`
             : ""
         }
-        <p class="fine">Il gioco pesca sempre pezzi di storia ancora non usati (posto, missione, cattivo, luoghi, prove). Quando un mazzo finisce, si rimescola da solo.</p>
       </section>`;
   }
 
@@ -348,194 +311,161 @@
     const count = state.setupCount;
     let inputs = "";
     for (let i = 0; i < count; i++) {
-      inputs += `<label>Giocatore ${i + 1}
+      inputs += `<label>Bambino ${i + 1}
         <input type="text" maxlength="24" data-name="${i}" value="${escapeHtml(state.setupNames[i] || "")}" placeholder="Nome">
       </label>`;
     }
     return `
       <section class="screen setup">
         <button class="btn text" data-act="home">← Indietro</button>
-        <h1>Chi gioca?</h1>
-        <p class="lead">Il <strong>master</strong> (di solito un adulto) legge il quaderno ad alta voce e tiene i segreti. Gli altri sono gli avventurieri: scelgono cosa fare e tirano un dado a 6 facce.</p>
-        <label>Nome del master
-          <input type="text" id="masterName" maxlength="24" value="${escapeHtml(state.setupMaster)}" placeholder="Es. Mamma, Papà, Nonna…">
+        <h1>Chi c'è?</h1>
+        <p class="lead">Un adulto può tenere il telefono e leggere. I bambini scelgono e girano la bussola. Non serve un master: si vede tutti la stessa cosa.</p>
+        <label>Chi tiene il telefono (facoltativo)
+          <input type="text" id="masterName" maxlength="24" value="${escapeHtml(state.setupMaster)}" placeholder="Es. Mamma">
         </label>
         <div class="stepper">
-          <span>Giocatori (avventurieri)</span>
+          <span>Quanti bambini giocano?</span>
           <div class="step-row">
             <button class="btn icon" data-act="count-down" ${count <= 1 ? "disabled" : ""}>−</button>
             <strong>${count}</strong>
             <button class="btn icon" data-act="count-up" ${count >= 6 ? "disabled" : ""}>+</button>
           </div>
-          <p class="fine">Da 1 a 6 avventurieri, più il master. Circa mezz'ora.</p>
         </div>
         <div class="names">${inputs}</div>
-        <button class="btn primary xl" data-act="create">Crea l'avventura</button>
+        <button class="btn primary xl" data-act="create">Inizia</button>
       </section>`;
   }
 
   function hud(game) {
     const sc = scene(game);
     const step = Math.min(game.sceneIndex + 1, game.scenes.length);
-    const left = Math.max(0, Math.round((game.scenes.length - step) * 3.5));
+    const actor = currentActor(game);
+    const showTurn = sc && sc.type !== "intro" && game.phase !== "result";
     return `
       <header class="play-top">
         <div>
-          <p class="eyebrow">${escapeHtml(game.title)}</p>
-          <p class="scene-count">Scena ${step}/${game.scenes.length} · ~${left} min</p>
+          <p class="eyebrow">${escapeHtml(game.quest.name)}</p>
+          <p class="scene-count">${step} / ${game.scenes.length}</p>
         </div>
-        <div class="role-toggle" role="group" aria-label="Vista">
-          <button class="${state.role === "master" ? "on" : ""}" data-act="role-master">Master</button>
-          <button class="${state.role === "players" ? "on" : ""}" data-act="role-players">Giocatori</button>
-        </div>
+        <button class="btn text" data-act="home-pause">Pausa</button>
       </header>
       <ul class="party">${game.players
         .map(
           (p) =>
-            `<li class="${p.hp <= 0 ? "out" : ""}"><span class="pn">${escapeHtml(p.name)}</span><span class="hp" title="cuori">${hearts(p.hp, p.maxHp)}</span><span class="role">${escapeHtml(p.role.name)}</span></li>`
+            `<li class="${p.hp <= 0 ? "out" : ""} ${showTurn && actor && actor.id === p.id ? "turn" : ""}"><span class="pn">${escapeHtml(p.name)}</span><span class="hp">${hearts(p.hp, p.maxHp)}</span></li>`
         )
         .join("")}</ul>
-      ${sc && sc.kindLabel ? `<p class="kind-chip">${escapeHtml(sc.kindLabel)} · ${escapeHtml(sc.locationName || "")}</p>` : ""}
-      <p class="mission"><strong>Missione:</strong> ${escapeHtml(game.quest.name)}. <strong>Cattivo:</strong> ${escapeHtml(game.villain.name)}.</p>
+      ${sc && sc.type !== "intro" ? `<p class="mission">Cattivo: ${escapeHtml(game.villain.name)}</p>` : ""}
     `;
+  }
+
+  function compassHtml(game) {
+    const actor = currentActor(game);
+    const spinning = state.spinning;
+    const last = state.lastSpin;
+    const yellow = last && last.color === "yellow";
+    return `
+      <div class="compass-block">
+        <p class="who">Tocca a <strong>${escapeHtml(actor ? actor.name : "")}</strong>. Gira la bussola.</p>
+        <div class="legend">
+          <span class="lg"><i class="dot green"></i> verde: ok</span>
+          <span class="lg"><i class="dot yellow"></i> giallo: ancora</span>
+          <span class="lg"><i class="dot red"></i> rosso: −1 cuore</span>
+        </div>
+        <div class="compass-wrap" ${spinning ? "" : 'data-act="do-spin" role="button" tabindex="0"'}>
+          <div class="needle" aria-hidden="true"></div>
+          <div class="compass ${spinning ? "moving" : ""}" style="transform: rotate(${state.wheelDeg}deg)"></div>
+        </div>
+        ${
+          spinning
+            ? `<p class="fine">Gira…</p>`
+            : yellow
+              ? `<p class="spin-yellow">Giallo. Ancora.</p><button class="btn primary xl" data-act="do-spin">Gira ancora</button>`
+              : `<button class="btn primary xl" data-act="do-spin">Gira</button>`
+        }
+      </div>`;
   }
 
   function renderPlay() {
     const game = activeGame();
     if (!game) return renderHome();
     if (game.status !== "ongoing") return renderEnd();
-    refreshActors(game);
+    refreshActor(game);
     const sc = scene(game);
-    let body = "";
-    if (state.role === "master") {
-      body = `
-        <article class="card parchment">
-          <p class="card-kicker">Quaderno del master · ${escapeHtml(game.masterName)}</p>
-          <h2>${escapeHtml(sc.title)}</h2>
-          <p class="story">${escapeHtml(sc.masterText)}</p>
-          ${sc.secret ? `<details class="secret"><summary>Nota segreta (solo master)</summary><p>${escapeHtml(sc.secret)}</p></details>` : ""}
-          ${
-            sc.actors && sc.actors.length
-              ? `<p class="who">Adesso tocca a: <strong>${escapeHtml(namesOf(game, sc.actors).join(", "))}</strong>. ${sc.actors.length === 1 ? "Questa persona tira il dado." : "Queste persone sono in azione; si tira il dado."}</p>`
-              : ""
-          }
+    if (!sc || !Array.isArray(sc.story)) {
+      return `<section class="screen play">
+        <article class="card warn">
+          <h2>Questa storia è vecchia</h2>
+          <p class="lead">Il gioco è cambiato. Serve una nuova storia.</p>
+          <button class="btn primary xl" data-act="new-confirm">Nuova storia</button>
         </article>
-        ${
-          sc.type === "intro"
-            ? `<button class="btn primary xl" data-act="intro-next">I giocatori si sono presentati — inizia la prima prova</button>`
-            : game.phase === "result"
-              ? `<article class="card">
-                  <p class="card-kicker">${game.lastOutcome && game.lastOutcome.ok ? "Ce l'avete fatta — la storia va così" : "Non è andata — la storia va dall'altra parte"}</p>
-                  <p class="story">${escapeHtml((game.lastOutcome && game.lastOutcome.text) || "")}</p>
-                </article>
-                <button class="btn primary xl" data-act="scene-next">Vai alla scena dopo</button>`
-              : `<button class="btn primary xl" data-act="to-players">Passa il telefono agli avventurieri</button>`
-        }
-        <button class="btn ghost" data-act="home-pause">Metti in pausa</button>
-      `;
-    } else {
-      if (sc.type === "intro") {
-        body = `<article class="card parchment">
-          <h2>Ascoltate il master</h2>
-          <p class="story">${escapeHtml(sc.playerText || "Il master sta aprendo la storia.")}</p>
-          <p class="who">I vostri ruoli:</p>
-          <ul class="mini-log">${game.players
-            .map((p) => `<li><strong>${escapeHtml(p.name)}</strong> — ${escapeHtml(p.role.name)}: ${escapeHtml(p.role.knack)}</li>`)
-            .join("")}</ul>
-          <p class="fine">Quando il master ha finito, tornate alla vista Master e premete il bottone per iniziare.</p>
-        </article>`;
-      } else if (game.phase === "master" || game.phase === "choose") {
-        body = `
-          <article class="card parchment">
-            <h2>${escapeHtml(sc.prompt || sc.title)}</h2>
-            <p class="story">${escapeHtml(sc.playerText || "")}</p>
-            <p class="who">Scelgono <strong>${escapeHtml(namesOf(game, sc.actors).join(" e "))}</strong>. Poi si tira un dado a 6 facce.</p>
-          </article>
-          <div class="choices">
-            ${sc.choices
-              .map(
-                (c) =>
-                  `<button class="choice ${game.currentChoiceId === c.id ? "picked" : ""}" data-act="pick" data-id="${c.id}">
-                    <span>${escapeHtml(c.label)}</span>
-                    <em>Serve ${c.target} o più sul dado</em>
-                    <small class="path-ok">Se riesci: ${escapeHtml(c.ok)}</small>
-                    <small class="path-fail">Se fallisci: ${escapeHtml(c.fail)}</small>
-                  </button>`
-              )
-              .join("")}
-          </div>
-          <button class="btn primary xl" data-act="to-roll" ${game.currentChoiceId ? "" : "disabled"}>Abbiamo scelto — tira il dado</button>
-        `;
-      } else if (game.phase === "roll") {
-        const actor = playerById(game, sc.actors[game.currentActorIndex]);
-        const choice = sc.choices.find((c) => c.id === game.currentChoiceId) || sc.choices[0];
-        if (!choice) {
-          body = `<article class="card">Manca la scelta. Torna indietro.</article>`;
-        } else {
-        body = `
-          <article class="card parchment center">
-            <p class="card-kicker">Dado</p>
-            <h2>${escapeHtml(actor ? actor.name : "")}</h2>
-            <p>Il dado ha 6 facce. Serve <strong>${choice.target} o più</strong>. Se esce di meno perdi ${choice.dmg} ${choice.dmg === 1 ? "cuore" : "cuori"} e la storia va dall'altra parte.</p>
-            <p class="path-ok">Se esce ${choice.target} o più: ${escapeHtml(choice.ok)}</p>
-            <p class="path-fail">Se esce di meno: ${escapeHtml(choice.fail)}</p>
-            <div class="die ${state.rolling ? "spin" : ""} ${state.lastRoll ? (state.lastRoll.ok ? "ok" : "bad") : ""}" aria-live="polite">${
-              state.rolling ? "?" : state.lastRoll ? state.lastRoll.value : "⚀"
-            }</div>
-            ${
-              state.lastRoll
-                ? `<p class="${state.lastRoll.ok ? "ok-text" : "bad-text"}">${
-                    state.lastRoll.ok
-                      ? "Ce la fai! La storia prende questa strada."
-                      : "Non ce l'hai fatta." + (state.lastRoll.deathText ? "<br>" + escapeHtml(state.lastRoll.deathText) : " Perdi cuori, e la storia prende l'altra strada.")
-                  }</p>
-                   <button class="btn primary" data-act="roll-next">Avanti</button>`
-                : `<button class="btn primary xl" data-act="do-roll">Tira!</button>`
-            }
-          </article>
-        `;
-        }
-      } else if (game.phase === "result") {
-        const o = game.lastOutcome || { text: "", ok: true };
-        body = `
-          <article class="card parchment">
-            <p class="card-kicker">${o.ok ? "Questa strada" : "L'altra strada"}</p>
-            <p class="story">${escapeHtml(o.text)}</p>
-            <ul class="mini-log">${(o.rolls || [])
-              .map((r) => {
-                const p = playerById(game, r.playerId);
-                return `<li>${escapeHtml(p?.name || "")}: ${r.value} ${r.ok ? "✓" : "✗"}</li>`;
-              })
-              .join("")}</ul>
-          </article>
-          <button class="btn primary xl" data-act="to-master">Passa il telefono al master: deve leggere come continua</button>
-        `;
-      }
+      </section>`;
     }
-    return `<section class="screen play">${hud(game)}${body}</section>`;
+    const actor = currentActor(game);
+
+    if (sc.type === "intro") {
+      return `<section class="screen play">${hud(game)}
+        <article class="card parchment">
+          ${storyHtml(sc.story)}
+          <p class="who">Giocano: <strong>${escapeHtml(game.players.map((p) => p.name).join(", "))}</strong></p>
+        </article>
+        <button class="btn primary xl" data-act="intro-next">Iniziamo</button>
+      </section>`;
+    }
+
+    if (game.phase === "result") {
+      const o = game.lastOutcome || { text: "", ok: true };
+      return `<section class="screen play">${hud(game)}
+        <article class="card parchment">
+          <p class="card-kicker">${o.ok ? "Verde" : "Rosso"}</p>
+          ${storyHtml([o.text].concat(o.deathText ? [o.deathText] : []))}
+        </article>
+        <button class="btn primary xl" data-act="scene-next">Avanti</button>
+      </section>`;
+    }
+
+    const picked = game.currentChoiceId;
+    return `<section class="screen play">${hud(game)}
+      <article class="card parchment">
+        ${sc.locationName ? `<p class="card-kicker">${escapeHtml(sc.locationName)}</p>` : ""}
+        <h2>${escapeHtml(sc.title)}</h2>
+        ${storyHtml(sc.story)}
+        ${actor ? `<p class="who">Tocca a <strong>${escapeHtml(actor.name)}</strong>.</p>` : ""}
+      </article>
+      <p class="prompt">${escapeHtml(sc.prompt || "Cosa fate?")}</p>
+      <div class="choices">
+        ${sc.choices
+          .map(
+            (c) =>
+              `<button class="choice ${picked === c.id ? "picked" : ""}" data-act="pick" data-id="${c.id}" ${state.spinning ? "disabled" : ""}>
+                <span>${escapeHtml(c.label)}</span>
+              </button>`
+          )
+          .join("")}
+      </div>
+      ${picked ? compassHtml(game) : ""}
+    </section>`;
   }
 
   function renderEnd() {
     const game = activeGame();
     if (!game) return renderHome();
     const sc = game.scenes[game.scenes.length - 1];
-    const label = game.outcome === "win" ? "Vittoria" : game.outcome === "flee" ? "Fuga" : "Avventura fallita";
+    const label = game.outcome === "win" ? "Finita bene" : game.outcome === "flee" ? "Siete scappati" : "Finita male";
     return `
       <section class="screen end">
         <p class="eyebrow">${escapeHtml(label)}</p>
         <h1>${escapeHtml(game.title)}</h1>
-        <article class="card parchment">
-          <p class="story">${escapeHtml(sc.masterText || game.endings.fail)}</p>
-        </article>
+        <article class="card parchment">${storyHtml(sc.story && sc.story.length ? sc.story : game.endings.fail)}</article>
         <ul class="party">${game.players
           .map(
             (p) =>
               `<li class="${p.hp <= 0 ? "out" : ""}"><span class="pn">${escapeHtml(p.name)}</span><span class="hp">${hearts(p.hp, p.maxHp)}</span>${
-                p.outLine ? `<span class="role">${escapeHtml(p.outLine)}</span>` : `<span class="role">${escapeHtml(p.role.name)}</span>`
+                p.outLine ? `<span class="role">${escapeHtml(p.outLine)}</span>` : ""
               }</li>`
           )
           .join("")}</ul>
-        <button class="btn primary xl" data-act="clear-end">Torna all'inizio</button>
+        <button class="btn primary xl" data-act="clear-end">All'inizio</button>
       </section>`;
   }
 
@@ -550,28 +480,25 @@
       if (state.toast) html += `<div class="toast" role="status">${escapeHtml(state.toast)}</div>`;
       root.innerHTML = html;
     } catch (err) {
-      root.innerHTML =
-        html +
-        `<pre class="toast">Errore schermata: ${escapeHtml(err && err.message ? err.message : String(err))}</pre>`;
+      root.innerHTML = `<pre class="toast">Errore: ${escapeHtml(err && err.message ? err.message : String(err))}</pre>`;
     }
   }
 
   function onClick(ev) {
     const btn = ev.target.closest("[data-act]");
-    if (!btn) return;
+    if (!btn || btn.disabled) return;
     const act = btn.getAttribute("data-act");
     const game = activeGame();
 
     if (act === "continue") {
       if (!state.game) state.game = AF_STORAGE.getActive();
       state.view = "play";
-      state.role = "master";
       render();
       return;
     }
     if (act === "new" || act === "new-confirm") {
       if (act === "new-confirm") {
-        if (!confirm("Abbandonare questa avventura? Non si potrà riprendere. Una nuova userà pezzi di storia diversi.")) return;
+        if (!confirm("Lasciare questa storia?")) return;
         abandonActive();
       }
       state.view = "setup";
@@ -602,62 +529,24 @@
       startNew(master, names.slice(0, state.setupCount));
       return;
     }
-    if (act === "role-master") {
-      state.role = "master";
-      render();
-      return;
-    }
-    if (act === "role-players") {
-      state.role = "players";
-      if (game && game.phase === "master" && scene(game).type !== "intro") game.phase = "choose";
-      save(game);
-      render();
-      return;
-    }
     if (act === "intro-next") {
       goNextScene(game);
       return;
     }
-    if (act === "to-players") {
-      state.role = "players";
-      if (game.phase === "master") game.phase = "choose";
-      save(game);
-      render();
-      return;
-    }
     if (act === "pick") {
+      if (game.phase === "spin" && state.spinning) return;
       game.currentChoiceId = btn.getAttribute("data-id");
+      game.phase = "spin";
+      state.lastSpin = null;
       save(game);
       render();
       return;
     }
-    if (act === "to-roll") {
-      if (!game.currentChoiceId) return;
-      game.phase = "roll";
-      game.currentActorIndex = 0;
-      while (game.currentActorIndex < scene(game).actors.length && playerById(game, scene(game).actors[game.currentActorIndex])?.hp <= 0) {
-        game.currentActorIndex += 1;
-      }
-      save(game);
-      render();
-      return;
-    }
-    if (act === "do-roll") {
-      rollForCurrentActor(game);
-      return;
-    }
-    if (act === "roll-next") {
-      afterRollContinue(game);
-      return;
-    }
-    if (act === "to-master") {
-      state.role = "master";
-      save(game);
-      render();
+    if (act === "do-spin") {
+      doSpin(game);
       return;
     }
     if (act === "scene-next") {
-      state.role = "master";
       goNextScene(game);
       return;
     }

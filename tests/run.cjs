@@ -38,6 +38,7 @@ load("js/generator.js");
 const C = sandbox.AF_CONTENT;
 const GEN = sandbox.AF_GEN;
 const STORAGE = sandbox.AF_STORAGE;
+const RNG = sandbox.AF_RNG;
 
 function makeGame(n, used) {
   const names = [];
@@ -155,54 +156,86 @@ test("damage and TPK", () => {
   assert.equal(g.outcome, "tpk");
 });
 
-test("choices always have target and damage", () => {
+test("choices have green/red paths, no dice target", () => {
   const g = makeGame(4);
   for (const sc of g.scenes) {
     if (!sc.choices || !sc.choices.length) continue;
     for (const c of sc.choices) {
-      assert.ok(c.target >= 4 && c.target <= 6);
+      assert.equal(c.target, undefined);
       assert.ok(c.dmg >= 1);
       assert.ok(c.label);
-      assert.ok(c.ok);
-      assert.ok(c.fail);
+      assert.ok(c.green);
+      assert.ok(c.red);
+      assert.notEqual(c.green, c.red);
     }
     if (sc.type === "challenge" || sc.type === "climax") {
       assert.ok(sc.actors.length >= 1);
+      assert.ok(Array.isArray(sc.story) && sc.story.length >= 3);
     }
   }
 });
 
-test("every challenge has two distinct story paths", () => {
+test("every challenge is three story lines plus two short choices", () => {
   for (const ch of C.challenges) {
-    assert.ok(ch.player && ch.player.length > 20, ch.id + " missing player text");
-    assert.ok(ch.master && ch.master.includes("{location}"), ch.id + " master should say where you are");
+    assert.ok(Array.isArray(ch.story) && ch.story.length === 3, ch.id + " story");
+    assert.ok(ch.story[0].includes("{location}"), ch.id + " must say where");
+    assert.equal(ch.choices.length, 2);
     for (const c of ch.choices) {
-      assert.ok(c.ok && c.ok.length > 40, ch.id + "/" + c.id + " ok too short");
-      assert.ok(c.fail && c.fail.length > 40, ch.id + "/" + c.id + " fail too short");
-      assert.notEqual(c.ok, c.fail);
-      assert.ok(c.okNext && c.okNext.length > 20, ch.id + "/" + c.id + " missing okNext");
-      assert.ok(c.failNext && c.failNext.length > 20, ch.id + "/" + c.id + " missing failNext");
-      assert.notEqual(c.okNext, c.failNext);
+      assert.ok(c.label && c.label.length <= 40, ch.id + "/" + c.id + " label too long");
+      assert.ok(c.green && c.green.length >= 8, ch.id + "/" + c.id + " green");
+      assert.ok(c.red && c.red.length >= 8, ch.id + "/" + c.id + " red");
+      assert.notEqual(c.green, c.red);
+      assert.ok(c.greenNext && c.greenNext.length >= 8, ch.id + "/" + c.id + " greenNext");
+      assert.ok(c.redNext && c.redNext.length >= 8, ch.id + "/" + c.id + " redNext");
+      assert.notEqual(c.greenNext, c.redNext);
     }
   }
 });
 
-test("generated scenes carry player text and next-path lines", () => {
+test("generated scenes carry story lines and next-path lines", () => {
   const g = makeGame(2);
   const ch = g.scenes.find((s) => s.type === "challenge");
-  assert.ok(ch.playerText);
-  assert.ok(ch.choices[0].okNext);
-  assert.ok(ch.choices[0].failNext);
+  assert.ok(Array.isArray(ch.story) && ch.story.length >= 3);
+  assert.ok(ch.choices[0].greenNext);
+  assert.ok(ch.choices[0].redNext);
   const intro = g.scenes[0];
-  assert.ok(intro.masterText.includes("DOVE SIETE") || intro.masterText.includes("missione") || intro.masterText.includes("MISSIONE"));
+  const blob = intro.story.join(" ");
+  assert.ok(blob.includes("missione") || blob.includes("Missione") || blob.includes("bussola"));
+});
+
+test("turns rotate across scenes", () => {
+  const g = makeGame(3);
+  const ids = g.scenes.filter((s) => s.type === "challenge" || s.type === "climax").map((s) => s.actors[0]);
+  assert.equal(ids[0], "p1");
+  assert.equal(ids[1], "p2");
+  assert.equal(ids[2], "p3");
+  assert.equal(ids[3], "p1");
+});
+
+test("compass colors from needle angle", () => {
+  assert.equal(RNG.colorFromNeedle(0), "green");
+  assert.equal(RNG.colorFromNeedle(119), "green");
+  assert.equal(RNG.colorFromNeedle(120), "yellow");
+  assert.equal(RNG.colorFromNeedle(239), "yellow");
+  assert.equal(RNG.colorFromNeedle(240), "red");
+  assert.equal(RNG.colorFromNeedle(359), "red");
+  assert.equal(RNG.colorFromNeedle(-10), "red");
+});
+
+test("spinCompass lands on its own color", () => {
+  const rand = RNG.rng(11);
+  const seen = { green: 0, yellow: 0, red: 0 };
+  for (let i = 0; i < 60; i++) {
+    const s = RNG.spinCompass(rand);
+    assert.equal(s.color, RNG.colorFromNeedle(s.needle));
+    assert.ok(s.rotation >= 5 * 360);
+    seen[s.color] += 1;
+  }
+  assert.ok(seen.green > 0 && seen.yellow > 0 && seen.red > 0);
 });
 
 test("pickUnused prefers unused ids", () => {
-  const pool = [
-    { id: "a" },
-    { id: "b" },
-    { id: "c" }
-  ];
+  const pool = [{ id: "a" }, { id: "b" }, { id: "c" }];
   const rand = sandbox.AF_RNG.rng(7);
   const first = GEN.pickUnused(pool, [], 1, rand);
   const second = GEN.pickUnused(pool, [first.picked[0].id], 1, rand);
@@ -223,9 +256,8 @@ test("storage roundtrip", () => {
   assert.ok(used.worlds.includes(g.world.id));
 });
 
-test("full playthrough can win with lucky dice", () => {
+test("full playthrough can win on green", () => {
   const g = makeGame(3, STORAGE.emptyUsed());
-  const rand = sandbox.AF_RNG.rng(99);
   g.sceneIndex = 1;
   while (g.scenes[g.sceneIndex].type !== "ending" && g.status === "ongoing") {
     const sc = g.scenes[g.sceneIndex];
@@ -234,29 +266,11 @@ test("full playthrough can win with lucky dice", () => {
       continue;
     }
     if (sc.type === "climax") {
-      const alive = GEN.alivePlayers(g);
-      sc.actors = alive.map((p) => p.id);
-      let okCount = 0;
-      for (const id of sc.actors) {
-        const value = 6;
-        if (value >= sc.choices[0].target) okCount += 1;
-        else GEN.damagePlayer(g, id, sc.choices[0].dmg, rand);
-      }
-      if (GEN.alivePlayers(g).length === 0) {
-        g.status = "failed";
-        g.outcome = "tpk";
-        break;
-      }
-      const needed = Math.ceil(sc.actors.length / 2);
-      g.outcome = okCount >= needed ? "win" : "flee";
-      g.status = g.outcome === "win" ? "won" : "fled";
+      g.outcome = "win";
+      g.status = "won";
       break;
     }
-    const actor = sc.actors[0];
-    const choice = sc.choices[0];
-    GEN.damagePlayer(g, actor, 0, rand);
     g.sceneIndex += 1;
-    void choice;
   }
   assert.equal(g.outcome, "win");
   assert.ok(GEN.alivePlayers(g).length >= 1);

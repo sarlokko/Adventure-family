@@ -28,5 +28,28 @@
     return 1 + Math.floor(rand() * 6);
   }
 
-  root.AF_RNG = { rng, seedFrom, shuffle, rollD6 };
+  const COMPASS = {
+    green: [0, 120],
+    yellow: [120, 240],
+    red: [240, 360]
+  };
+
+  function colorFromNeedle(needleDeg) {
+    const d = ((needleDeg % 360) + 360) % 360;
+    if (d < 120) return "green";
+    if (d < 240) return "yellow";
+    return "red";
+  }
+
+  function spinCompass(rand) {
+    const r = rand();
+    const color = r < 1 / 3 ? "green" : r < 2 / 3 ? "yellow" : "red";
+    const [a, b] = COMPASS[color];
+    const needle = a + 16 + rand() * (b - a - 32);
+    const turns = 5 + Math.floor(rand() * 4);
+    const rotation = turns * 360 + (360 - needle);
+    return { color, needle, rotation };
+  }
+
+  root.AF_RNG = { rng, seedFrom, shuffle, rollD6, spinCompass, colorFromNeedle, COMPASS };
 })(typeof window !== "undefined" ? window : globalThis);

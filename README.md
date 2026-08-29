@@ -1,21 +1,26 @@
 # Adventure Family
 
-Portale di avventure **GDR per famiglie**. Ogni volta che apri una nuova storia, il gioco pesca elementi mai usati e costruisce un’avventura da circa mezz’ora.
+Storie da leggere ad alta voce in famiglia, sul telefono o sul tablet. Ogni nuova partita pesca pezzi mai usati e dura circa mezz’ora.
 
 ## Come si gioca
 
-1. Un adulto (o chi se la sente) è il **master**: legge il quaderno, tiene i segreti, fa volare la storia.
-2. Gli altri sono i **giocatori** (da 1 a 6). All’inizio si sceglie quanti sono e i nomi.
-3. Si passa il telefono/tablet: vista Master e vista Giocatori.
-4. Le prove si risolvono con un **dado a 6 facce**. Serve un punteggio minimo (4, 5 o 6). Se fallisci **perdi cuori** e la storia prende **un’altra strada** (più difficile). Se riesci, la storia va avanti sulla strada migliore.
-5. A **0 cuori** il personaggio è fuori gioco (nella storia “muore” in modo da fiaba, non cruento).
-6. Se **cadono tutti**, l’avventura **fallisce**.
+Un solo schermo, tutti insieme. Non serve un master.
 
-Se c’è una storia in sospeso, all’apertura puoi **continuare** o **iniziarne una nuova** (quella vecchia viene abbandonata e i suoi elementi restano usati, così la nuova è comunque diversa).
+1. Si scelgono i nomi (da 1 a 6 bambini). Un adulto può tenere il telefono e leggere.
+2. Si legge una frase alla volta.
+3. Chi ha il turno sceglie **una** delle due azioni.
+4. Si gira la **bussola**:
+   - **verde**: l’azione riesce, la storia va avanti bene
+   - **giallo**: si gira ancora, stesso turno
+   - **rosso**: l’azione va male, **un cuore in meno**, la storia va avanti comunque ma più in salita
+5. Ognuno ha **3 cuori**. A zero si esce da questa storia (si rivede a cena).
+6. Se cadono tutti, la storia finisce male. All’ultimo scontro, verde vince e rosso si scappa.
+
+Se c’è una storia in sospeso puoi **continuare** o **iniziarne una nuova**.
 
 ## Sempre diversa
 
-Ogni avventura combina mondo, missione, nemico, tesoro, personaggio guida, ruoli, luoghi e prove **non ancora usati**. Quando un mazzo finisce, si rimescola da solo: le combinazioni restano nuove.
+Ogni avventura combina mondo, missione, nemico, tesoro, amico, ruoli, luoghi e prove **non ancora usati**. Quando un mazzo finisce, si rimescola da solo.
 
 ## Avvio locale
 

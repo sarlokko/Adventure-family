@@ -1,19 +1,12 @@
 (function (root) {
-  const KIND_IT = {
-    danger: "Attenzione: pericolo",
-    puzzle: "Indovinello",
-    social: "Parlare",
-    stealth: "Nascondersi",
-    chase: "Inseguimento",
-    help: "Aiutare",
-    moral: "Una scelta",
-    explore: "Cercare"
-  };
-
   function fill(str, vars) {
     return String(str).replace(/\{([a-zA-Z0-9]+)\}/g, (_, k) => {
       return vars[k] != null ? String(vars[k]) : "{" + k + "}";
     });
+  }
+
+  function fillList(list, vars) {
+    return (list || []).map((s) => fill(s, vars));
   }
 
   function pickUnused(pool, usedIds, count, rand) {
@@ -38,41 +31,22 @@
     return { picked, reset, remainingFresh: Math.max(0, unused.length - picked.length) };
   }
 
-  function playerCountForWho(who, aliveCount) {
-    if (who === "all") return Math.max(1, aliveCount);
-    if (who === "two") return Math.min(2, Math.max(1, aliveCount));
-    return 1;
-  }
-
-  function chooseActors(players, who, rand, sceneIndex) {
+  function chooseActor(players, sceneIndex) {
     const alive = players.filter((p) => p.hp > 0);
     if (!alive.length) return [];
-    const n = playerCountForWho(who, alive.length);
-    const shuffled = root.AF_RNG.shuffle(alive, rand);
-    // Rotate so it isn't always the same first player.
-    const start = sceneIndex % shuffled.length;
-    const rotated = shuffled.slice(start).concat(shuffled.slice(0, start));
-    return rotated.slice(0, n).map((p) => p.id);
+    return [alive[sceneIndex % alive.length].id];
   }
 
-  function interpolateAdventure(adv, extra) {
-    const vars = Object.assign(
-      {
-        world: adv.world.name,
-        worldHook: adv.world.hook,
-        questName: adv.quest.name,
-        questGoal: adv.quest.goal,
-        villain: adv.villain.name,
-        villainStyle: adv.villain.style,
-        treasure: adv.treasure.name,
-        npc: adv.npc.name,
-        npcQuirk: adv.npc.quirk,
-        master: adv.masterName,
-        location: extra && extra.location ? extra.location : adv.scenes[0] ? adv.scenes[0].locationName : "la soglia"
-      },
-      extra || {}
-    );
-    return vars;
+  function mapChoice(c, vars) {
+    return {
+      id: c.id,
+      label: fill(c.label, vars),
+      dmg: c.dmg || 1,
+      green: fill(c.green, vars),
+      red: fill(c.red, vars),
+      greenNext: fill(c.greenNext || "", vars),
+      redNext: fill(c.redNext || "", vars)
+    };
   }
 
   function generate(opts) {
@@ -96,15 +70,14 @@
     const villain = take("villains", 1)[0];
     const treasure = take("treasures", 1)[0];
     const npc = take("npcs", 1)[0];
-    const extraNpcs = [];
     const roles = take("roles", opts.players.length);
     const locations = take("locations", 6);
     const challenges = take("challenges", 5);
     const climax = take("climax", 1)[0];
-    const opening = C.openings[Math.floor(rand() * C.openings.length)];
-    const winEnding = C.winEndings[Math.floor(rand() * C.winEndings.length)];
-    const failEnding = C.failEndings[Math.floor(rand() * C.failEndings.length)];
-    const fleeEnding = C.fleeEndings[Math.floor(rand() * C.fleeEndings.length)];
+    const opening = C.openings[0];
+    const winEnding = C.winEndings[0];
+    const failEnding = C.failEndings[0];
+    const fleeEnding = C.fleeEndings[0];
 
     const players = opts.players.map((p, i) => ({
       id: "p" + (i + 1),
@@ -118,15 +91,16 @@
 
     const baseVars = {
       world: world.name,
-      worldHook: world.hook,
+      worldLine: world.line,
       questName: quest.name,
-      questGoal: quest.goal,
+      questLine: quest.line,
       villain: villain.name,
-      villainStyle: villain.style,
+      villainLine: villain.line,
       treasure: treasure.name,
       npc: npc.name,
-      npcQuirk: npc.quirk,
-      master: opts.masterName
+      npcLine: npc.line,
+      master: opts.masterName,
+      actor: "chi gira"
     };
 
     const scenes = [];
@@ -136,14 +110,11 @@
       type: "intro",
       title: world.name,
       locationName: world.name,
-      masterText: fill(opening, baseVars),
-      playerText: "Il master sta raccontando dove siete, cosa dovete fare e chi è il cattivo. Ascoltate. Poi vi presenterete con nome e ruolo.",
-      secret: "Leggi ad alta voce, piano. Poi ogni giocatore dice nome e ruolo (li vedi sotto). Quando sono pronti, premi il bottone. Circa 30 minuti, 8 scene.",
+      story: fillList(opening, baseVars),
       prompt: null,
       choices: [],
       who: "none",
-      actors: [],
-      kind: "intro"
+      actors: []
     });
 
     challenges.forEach((ch, i) => {
@@ -153,26 +124,13 @@
         id: ch.id,
         type: "challenge",
         title: ch.title,
-        kind: ch.kind,
-        kindLabel: KIND_IT[ch.kind] || ch.kind,
         locationName: loc.name,
         locationId: loc.id,
-        masterText: fill(ch.master, vars),
-        playerText: fill(ch.player || ch.prompt, vars),
-        secret: fill(ch.secret, vars),
+        story: fillList(ch.story, vars),
         prompt: fill(ch.prompt, vars),
-        who: ch.who,
-        actors: chooseActors(players, ch.who, rand, i + 1),
-        choices: ch.choices.map((c) => ({
-          id: c.id,
-          label: fill(c.label, vars),
-          target: c.target,
-          dmg: c.dmg,
-          ok: fill(c.ok, vars),
-          fail: fill(c.fail, vars),
-          okNext: fill(c.okNext || "", vars),
-          failNext: fill(c.failNext || "", vars)
-        }))
+        who: "one",
+        actors: chooseActor(players, i),
+        choices: ch.choices.map((c) => mapChoice(c, vars))
       });
     });
 
@@ -182,36 +140,22 @@
       id: climax.id,
       type: "climax",
       title: climax.title,
-      kind: "danger",
-      kindLabel: "Scontro finale",
       locationName: climaxLoc.name,
       locationId: climaxLoc.id,
-      masterText: fill(climax.master, cvars),
-      playerText: fill(climax.player || climax.prompt, cvars),
-      secret: fill(climax.secret, cvars),
+      story: fillList(climax.story, cvars),
       prompt: fill(climax.prompt, cvars),
-      who: "all",
-      actors: players.map((p) => p.id),
-      choices: climax.choices.map((c) => ({
-        id: c.id,
-        label: fill(c.label, cvars),
-        target: c.target,
-        dmg: c.dmg,
-        ok: fill(c.ok, cvars),
-        fail: fill(c.fail, cvars),
-        okNext: fill(c.okNext || "", cvars),
-        failNext: fill(c.failNext || "", cvars)
-      })),
+      who: "one",
+      actors: chooseActor(players, 5),
+      choices: climax.choices.map((c) => mapChoice(c, cvars)),
       groupSuccessNeeded: true
     });
 
     scenes.push({
       id: "ending",
       type: "ending",
-      title: "Epilogo",
+      title: "Fine",
       locationName: climaxLoc.name,
-      masterText: "",
-      secret: "",
+      story: [],
       prompt: null,
       choices: [],
       who: "none",
@@ -220,42 +164,44 @@
 
     const title = quest.name + " · " + world.name;
 
-    const usedIds = {
-      worlds: [world.id],
-      quests: [quest.id],
-      villains: [villain.id],
-      treasures: [treasure.id],
-      npcs: [npc.id].concat(extraNpcs.map((n) => n.id)),
-      roles: roles.map((r) => r.id),
-      locations: locations.map((l) => l.id),
-      challenges: challenges.map((c) => c.id),
-      climax: [climax.id]
-    };
-
     return {
       id: "adv-" + seed.toString(16) + "-" + Date.now().toString(36),
       seed,
       createdAt: Date.now(),
       title,
-      masterName: opts.masterName || "Master",
+      masterName: opts.masterName || "",
       world,
       quest,
       villain,
       treasure,
       npc,
-      extraNpcs,
+      extraNpcs: [],
       players,
       scenes,
       sceneIndex: 0,
-      phase: "master",
+      phase: "intro",
       currentChoiceId: null,
       currentActorIndex: 0,
       rolls: [],
       log: [],
       status: "ongoing",
       outcome: null,
-      endings: { win: fill(winEnding, Object.assign({}, baseVars, { location: climaxLoc.name })), fail: fill(failEnding, Object.assign({}, baseVars, { location: climaxLoc.name })), flee: fill(fleeEnding, Object.assign({}, baseVars, { location: climaxLoc.name })) },
-      usedIds,
+      endings: {
+        win: fillList(winEnding, Object.assign({}, baseVars, { location: climaxLoc.name })),
+        fail: fillList(failEnding, Object.assign({}, baseVars, { location: climaxLoc.name })),
+        flee: fillList(fleeEnding, Object.assign({}, baseVars, { location: climaxLoc.name }))
+      },
+      usedIds: {
+        worlds: [world.id],
+        quests: [quest.id],
+        villains: [villain.id],
+        treasures: [treasure.id],
+        npcs: [npc.id],
+        roles: roles.map((r) => r.id),
+        locations: locations.map((l) => l.id),
+        challenges: challenges.map((c) => c.id),
+        climax: [climax.id]
+      },
       resets,
       minutesEstimate: 30
     };
@@ -297,15 +243,14 @@
   }
 
   root.AF_GEN = {
-    KIND_IT,
     fill,
+    fillList,
     pickUnused,
     generate,
     alivePlayers,
     damagePlayer,
     applyDeath,
     checkTpk,
-    chooseActors,
-    interpolateAdventure
+    chooseActor
   };
 })(typeof window !== "undefined" ? window : globalThis);

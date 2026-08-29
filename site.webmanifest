@@ -1,7 +1,7 @@
 {
   "name": "Adventure Family",
   "short_name": "Adventure Family",
-  "description": "Avventure GDR casuali da giocare in famiglia: un master, i giocatori, i dadi.",
+  "description": "Storie in famiglia: si legge, si sceglie, si gira la bussola.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1a2a22",
