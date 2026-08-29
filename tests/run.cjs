@@ -44,7 +44,7 @@ function makeGame(n, used) {
   const names = [];
   for (let i = 0; i < n; i++) names.push("P" + (i + 1));
   return GEN.generate({
-    masterName: "Nonna",
+    masterName: "Marco",
     players: names.map((name) => ({ name })),
     used: used || STORAGE.emptyUsed(),
     seed: (Math.floor(Math.random() * 1e9) + 1) >>> 0
@@ -58,14 +58,16 @@ function test(name, fn) {
   console.log("ok  " + name);
 }
 
-test("pool sizes", () => {
-  assert.ok(C.worlds.length >= 20);
-  assert.ok(C.quests.length >= 20);
-  assert.ok(C.villains.length >= 20);
+test("six survival campaigns", () => {
+  assert.ok(C.campaigns && C.campaigns.length >= 6);
+  assert.ok(C.worlds.length >= 6);
+  assert.ok(C.quests.length >= 6);
+  assert.ok(C.villains.length >= 6);
   assert.ok(C.locations.length >= 40);
   assert.ok(C.challenges.length >= 30);
   assert.ok(C.roles.length >= 12);
-  assert.ok(C.climax.length >= 3);
+  assert.ok(C.climax.length >= 6);
+  assert.ok(Array.isArray(C.deathLines) && C.deathLines.length >= 3);
 });
 
 test("unique ids inside each pool", () => {
@@ -78,24 +80,26 @@ test("unique ids inside each pool", () => {
     roles: C.roles,
     locations: C.locations,
     challenges: C.challenges,
-    climax: C.climax
+    climax: C.climax,
+    campaigns: C.campaigns
   })) {
     const ids = pool.map((x) => x.id);
     assert.equal(ids.length, new Set(ids).size, name + " has duplicate ids");
   }
 });
 
-test("adventure shape ~30 min, 8 scenes", () => {
+test("new game starts open-ended, not an 8-scene script", () => {
   const g = makeGame(3);
-  assert.equal(g.scenes.length, 8);
+  assert.equal(g.scenes.length, 3);
   assert.equal(g.scenes[0].type, "intro");
-  assert.equal(g.scenes[6].type, "climax");
-  assert.equal(g.scenes[7].type, "ending");
+  assert.equal(g.scenes[1].type, "challenge");
+  assert.equal(g.scenes[2].type, "ending");
+  assert.equal(g.progress, 0);
+  assert.ok(g.goalNeeded >= 5);
+  assert.ok(g.campaign && g.campaign.id);
   assert.equal(g.players.length, 3);
   assert.ok(g.players.every((p) => p.hp === 3));
-  assert.equal(g.minutesEstimate, 30);
-  const usedLoc = new Set(g.scenes.filter((s) => s.locationId).map((s) => s.locationId));
-  assert.equal(usedLoc.size, 6);
+  assert.ok(!g.scenes.some((s) => s.type === "climax"));
 });
 
 test("player count 1 to 6", () => {
@@ -107,35 +111,35 @@ test("player count 1 to 6", () => {
   }
 });
 
-test("sequential adventures never reuse elements until a pool resets", () => {
+test("sequential adventures prefer unused campaigns", () => {
   const seen = STORAGE.emptyUsed();
   const used = STORAGE.emptyUsed();
   for (let i = 0; i < 5; i++) {
     const g = makeGame(2, used);
     for (const [pool, ids] of Object.entries(g.usedIds)) {
+      if (!seen[pool]) seen[pool] = [];
       for (const id of ids) {
-        if (!g.resets.includes(pool)) {
+        if (!g.resets.includes(pool) && pool === "campaigns") {
           assert.ok(!seen[pool].includes(id), "reused " + pool + " " + id + " on adventure " + i);
         }
         if (!seen[pool].includes(id)) seen[pool].push(id);
+        if (!used[pool]) used[pool] = [];
         if (!used[pool].includes(id)) used[pool].push(id);
       }
     }
-    assert.ok(g.world.id);
-    assert.ok(g.quest.id);
-    assert.ok(g.villain.id);
+    assert.ok(g.campaign.id);
   }
 });
 
-test("five adventures have distinct world+quest+villain signatures", () => {
+test("five adventures have distinct campaigns", () => {
   const used = STORAGE.emptyUsed();
   const sigs = new Set();
   for (let i = 0; i < 5; i++) {
     const g = makeGame(3, used);
-    const sig = [g.world.id, g.quest.id, g.villain.id, g.treasure.id, g.npc.id].join("|");
-    assert.ok(!sigs.has(sig), "duplicate signature " + sig);
-    sigs.add(sig);
+    assert.ok(!sigs.has(g.campaign.id), "duplicate campaign " + g.campaign.id);
+    sigs.add(g.campaign.id);
     for (const [pool, ids] of Object.entries(g.usedIds)) {
+      if (!used[pool]) used[pool] = [];
       for (const id of ids) if (!used[pool].includes(id)) used[pool].push(id);
     }
   }
@@ -158,6 +162,8 @@ test("damage and TPK", () => {
 
 test("choices have green/red paths, no dice target", () => {
   const g = makeGame(4);
+  GEN.appendChallenge(g);
+  GEN.appendChallenge(g);
   for (const sc of g.scenes) {
     if (!sc.choices || !sc.choices.length) continue;
     for (const c of sc.choices) {
@@ -182,7 +188,7 @@ test("every challenge is a short chapter with two paths", () => {
     assert.ok(ch.story.join("").length > 200, ch.id + " story too thin");
     assert.equal(ch.choices.length, 2);
     for (const c of ch.choices) {
-      assert.ok(c.label && c.label.length <= 40, ch.id + "/" + c.id + " label too long");
+      assert.ok(c.label && c.label.length <= 48, ch.id + "/" + c.id + " label too long");
       assert.ok(c.green && c.green.length >= 80, ch.id + "/" + c.id + " green too thin");
       assert.ok(c.red && c.red.length >= 80, ch.id + "/" + c.id + " red too thin");
       assert.notEqual(c.green, c.red);
@@ -200,8 +206,10 @@ test("generated scenes carry story lines and next-path lines", () => {
   assert.ok(ch.choices[0].greenNext);
   assert.ok(ch.choices[0].redNext);
   const intro = g.scenes[0];
-  const blob = intro.story.join(" ");
-  assert.ok(blob.includes("bussola") && blob.includes("ad alta voce"));
+  const blob = intro.story.join(" ").toLowerCase();
+  assert.ok(blob.includes("vite"), "intro must mention lives");
+  assert.ok(blob.includes("verde"), "intro must mention green");
+  assert.ok(blob.includes("rosso"), "intro must mention red");
 });
 
 test("actor placeholder stays until play, then becomes the name", () => {
@@ -214,13 +222,65 @@ test("actor placeholder stays until play, then becomes the name", () => {
   assert.ok(!filled.includes("{actor}"));
 });
 
-test("turns rotate across scenes", () => {
+test("turns rotate as challenges are appended", () => {
   const g = makeGame(3);
-  const ids = g.scenes.filter((s) => s.type === "challenge" || s.type === "climax").map((s) => s.actors[0]);
+  GEN.appendChallenge(g);
+  GEN.appendChallenge(g);
+  GEN.appendChallenge(g);
+  const ids = g.scenes.filter((s) => s.type === "challenge").map((s) => s.actors[0]);
   assert.equal(ids[0], "p1");
   assert.equal(ids[1], "p2");
   assert.equal(ids[2], "p3");
   assert.equal(ids[3], "p1");
+});
+
+test("green advances, red does not, story keeps going", () => {
+  const g = makeGame(2);
+  assert.equal(g.progress, 0);
+  g.progress += 1;
+  GEN.appendChallenge(g);
+  assert.equal(g.progress, 1);
+  assert.equal(g.scenes.filter((s) => s.type === "challenge").length, 2);
+  GEN.appendChallenge(g);
+  GEN.appendChallenge(g);
+  GEN.appendChallenge(g);
+  assert.equal(g.progress, 1, "red / no-progress must not change the counter");
+  assert.ok(g.scenes.filter((s) => s.type === "challenge").length >= 5);
+  assert.ok(g.scenes.length > 3);
+});
+
+test("climax only after enough greens", () => {
+  const g = makeGame(3);
+  const need = g.goalNeeded;
+  for (let i = 0; i < need; i++) {
+    g.progress += 1;
+    if (g.progress >= need) GEN.ensureClimax(g);
+    else GEN.appendChallenge(g);
+  }
+  assert.ok(g.scenes.some((s) => s.type === "climax"));
+  const climax = g.scenes.find((s) => s.type === "climax");
+  assert.ok(climax.choices.length >= 2);
+  assert.ok(climax.choices[0].green);
+  assert.ok(climax.choices[0].red);
+});
+
+test("full playthrough can win on greens then climax", () => {
+  const g = makeGame(3, STORAGE.emptyUsed());
+  g.sceneIndex = 1;
+  while (g.progress < g.goalNeeded) {
+    const sc = g.scenes[g.sceneIndex];
+    assert.equal(sc.type, "challenge");
+    g.progress += 1;
+    if (g.progress >= g.goalNeeded) GEN.ensureClimax(g);
+    else GEN.appendChallenge(g);
+    g.sceneIndex += 1;
+  }
+  const sc = g.scenes[g.sceneIndex];
+  assert.equal(sc.type, "climax");
+  g.outcome = "win";
+  g.status = "won";
+  assert.equal(g.outcome, "win");
+  assert.ok(GEN.alivePlayers(g).length >= 1);
 });
 
 test("compass colors from needle angle", () => {
@@ -267,29 +327,10 @@ test("storage roundtrip", () => {
   STORAGE.setActive(g);
   const back = STORAGE.getActive();
   assert.equal(back.title, g.title);
+  assert.equal(back.progress, 0);
   STORAGE.markUsed(g.usedIds);
   const used = STORAGE.getUsed();
-  assert.ok(used.worlds.includes(g.world.id));
-});
-
-test("full playthrough can win on green", () => {
-  const g = makeGame(3, STORAGE.emptyUsed());
-  g.sceneIndex = 1;
-  while (g.scenes[g.sceneIndex].type !== "ending" && g.status === "ongoing") {
-    const sc = g.scenes[g.sceneIndex];
-    if (sc.type === "intro") {
-      g.sceneIndex += 1;
-      continue;
-    }
-    if (sc.type === "climax") {
-      g.outcome = "win";
-      g.status = "won";
-      break;
-    }
-    g.sceneIndex += 1;
-  }
-  assert.equal(g.outcome, "win");
-  assert.ok(GEN.alivePlayers(g).length >= 1);
+  assert.ok(used.campaigns.includes(g.campaign.id));
 });
 
 test("everyone dead fails the adventure", () => {

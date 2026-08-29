@@ -1,26 +1,22 @@
 # Adventure Family
 
-Storie da leggere ad alta voce in famiglia, sul telefono o sul tablet. Ogni nuova partita pesca pezzi mai usati e dura circa mezz’ora.
+Libro-game di sopravvivenza, nello stile di *Giungla mortale*, *La maledizione del faraone* e *Sperduto nello spazio*. Si legge in seconda persona, si sceglie, si gira la ruota. Niente fiabe: giungla, tomba, nave in avaria, montagna, mare, deserto.
 
 ## Come si gioca
 
 Un solo schermo, tutti insieme. Non serve un master.
 
-1. Si scelgono i nomi (da 1 a 6 bambini). Un adulto può tenere il telefono e leggere.
-2. Si legge un pezzo di racconto, come un libro.
+1. Si mettono i nomi (da 1 a 6). Uno può tenere il telefono e leggere.
+2. Si legge un pezzo di spedizione, come un libro-game.
 3. Chi ha il turno sceglie **una** delle due azioni.
 4. Si gira la **bussola**:
-   - **verde**: l’azione riesce, la storia va avanti bene
+   - **verde**: l’azione riesce e il gruppo **avanza** (contatore +1)
    - **giallo**: si gira ancora, stesso turno
-   - **rosso**: l’azione va male, **un cuore in meno**, la storia va avanti comunque ma più in salita
-5. Ognuno ha **3 cuori**. A zero si esce da questa storia (si rivede a cena).
-6. Se cadono tutti, la storia finisce male. All’ultimo scontro, verde vince e rosso si scappa.
+   - **rosso**: l’azione fallisce, **una vita in meno**, e **non avanzate** — la storia va avanti da una posizione peggiore
+5. Ognuno ha **3 vite**. A zero quella persona è fuori combattimento. Il gruppo continua senza di lei.
+6. Non c’è un tetto di scene. Si continua finché fate abbastanza passi avanti e chiudete l’uscita, o finché cadono tutti.
 
-Se c’è una storia in sospeso puoi **continuare** o **iniziarne una nuova**.
-
-## Sempre diversa
-
-Ogni avventura combina mondo, missione, nemico, tesoro, amico, ruoli, luoghi e prove **non ancora usati**. Quando un mazzo finisce, si rimescola da solo.
+Ogni nuova partita pesca una spedizione non ancora usata. Quando le avete fatte tutte, si rimescola.
 
 ## Avvio locale
 

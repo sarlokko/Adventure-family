@@ -1,7 +1,7 @@
 {
   "name": "Adventure Family",
   "short_name": "Adventure Family",
-  "description": "Storie in famiglia: si legge, si sceglie, si gira la bussola.",
+  "description": "Libro-game di sopravvivenza: si legge, si sceglie, si gira la ruota.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1a2a22",

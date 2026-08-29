@@ -117,7 +117,7 @@
     state.view = "play";
     state.lastSpin = null;
     state.wheelDeg = 0;
-    if (game.resets.length) toast("Alcuni pezzi erano già usati. Li ho rimescolati.");
+    if (game.resets.length) toast("Quelle spedizioni le avete già fatte. Le rimescolo.");
     render();
   }
 
@@ -169,26 +169,43 @@
     }
     const sc = scene(game);
     if (sc && sc.type === "climax" && game.phase === "result") {
-      if (game.lastOutcome && game.lastOutcome.ok) finish(game, "win");
-      else finish(game, "flee");
+      if (game.lastOutcome && game.lastOutcome.ok) {
+        finish(game, "win");
+      } else {
+        game.phase = "choose";
+        game.currentChoiceId = null;
+        state.lastSpin = null;
+        sc.story = ["Il tentativo è fallito. Siete ancora lì, feriti. O riprovate adesso, o è finita."].concat(sc.story || []);
+      }
       save(game);
       render();
       return;
+    }
+    if (game.progress >= (game.goalNeeded || 5)) {
+      AF_GEN.ensureClimax(game);
+    } else if (sc && sc.type !== "intro") {
+      AF_GEN.appendChallenge(game);
     }
     game.sceneIndex += 1;
     game.phase = "choose";
     game.currentChoiceId = null;
     state.lastSpin = null;
     const next = scene(game);
-    if (next && game.pathNote) {
-      next.story = [withActor(game.pathNote, game)].concat(next.story || []);
+    if (next && next.type === "ending") {
+      if (game.progress >= (game.goalNeeded || 5)) {
+        AF_GEN.ensureClimax(game);
+        game.sceneIndex = game.scenes.findIndex((s) => s.type === "climax");
+      } else {
+        AF_GEN.appendChallenge(game);
+        game.sceneIndex = game.scenes.length - 2;
+      }
+    }
+    const go = scene(game);
+    if (go && game.pathNote) {
+      go.story = [withActor(game.pathNote, game)].concat(go.story || []);
       game.pathNote = null;
     }
-    if (next && next.type === "ending") {
-      finish(game, AF_GEN.alivePlayers(game).length ? "win" : "tpk");
-    } else {
-      refreshActor(game);
-    }
+    refreshActor(game);
     save(game);
     render();
   }
@@ -217,13 +234,18 @@
       if (res.died) deathText = actor.outLine;
       beep(res.died ? "death" : "red");
     } else {
+      if (sc.type !== "climax") game.progress = (game.progress || 0) + 1;
       beep("green");
     }
+    const need = game.goalNeeded || 5;
     game.lastOutcome = {
       text: withActor(ok ? choice.green : choice.red, game),
       ok,
       deathText,
-      color
+      color,
+      advanced: ok && sc.type !== "climax",
+      progress: game.progress || 0,
+      goalNeeded: need
     };
     state.lastSpin = { color, playerName: actor.name };
     game.pathNote = ok ? choice.greenNext || "" : choice.redNext || "";
@@ -290,16 +312,16 @@
     return `
       <section class="screen home">
         <div class="hero">
-          <p class="eyebrow">Storia in famiglia</p>
+          <p class="eyebrow">Libro-game di sopravvivenza</p>
           <h1>Adventure Family</h1>
-          <p class="lead">Una storia da leggere ad alta voce. Si sceglie cosa fare, si gira la bussola, e il racconto cambia. Verde: l'azione riesce. Giallo: si gira ancora. Rosso: un cuore in meno. Circa mezz'ora.</p>
+          <p class="lead">Giungla, tomba, spazio, montagna, mare, deserto. Si legge, si sceglie, si gira la ruota. Verde: l'azione riesce e il gruppo avanza. Giallo: si gira ancora. Rosso: un ferito, e restate dove siete. Niente tetto di scene: si continua finché uscite o finite le vite.</p>
         </div>
         ${
           pending
             ? `<div class="card warn">
                 <p class="card-kicker">In sospeso</p>
                 <h2>${escapeHtml(active.title)}</h2>
-                <p>Punto ${active.sceneIndex + 1} di ${active.scenes.length}</p>
+                <p>${active.progress != null ? "Avanzamento " + active.progress + "/" + active.goalNeeded : "In corso"}</p>
                 <div class="row">
                   <button class="btn primary" data-act="continue">Continua</button>
                   <button class="btn ghost" data-act="new-confirm">Nuova storia</button>
@@ -329,7 +351,7 @@
     const count = state.setupCount;
     let inputs = "";
     for (let i = 0; i < count; i++) {
-      inputs += `<label>Bambino ${i + 1}
+      inputs += `<label>Giocatore ${i + 1}
         <input type="text" maxlength="24" data-name="${i}" value="${escapeHtml(state.setupNames[i] || "")}" placeholder="Nome">
       </label>`;
     }
@@ -337,12 +359,12 @@
       <section class="screen setup">
         <button class="btn text" data-act="home">← Indietro</button>
         <h1>Chi c'è?</h1>
-        <p class="lead">Un adulto può tenere il telefono e leggere. I bambini scelgono e girano la bussola. Non serve un master: si vede tutti la stessa cosa.</p>
-        <label>Chi tiene il telefono (facoltativo)
-          <input type="text" id="masterName" maxlength="24" value="${escapeHtml(state.setupMaster)}" placeholder="Es. Mamma">
+        <p class="lead">Uno legge, gli altri scelgono e girano la ruota. Stesso schermo. Non serve un master.</p>
+        <label>Chi legge (facoltativo)
+          <input type="text" id="masterName" maxlength="24" value="${escapeHtml(state.setupMaster)}" placeholder="Es. Marco">
         </label>
         <div class="stepper">
-          <span>Quanti bambini giocano?</span>
+          <span>Quanti giocatori?</span>
           <div class="step-row">
             <button class="btn icon" data-act="count-down" ${count <= 1 ? "disabled" : ""}>−</button>
             <strong>${count}</strong>
@@ -356,14 +378,16 @@
 
   function hud(game) {
     const sc = scene(game);
-    const step = Math.min(game.sceneIndex + 1, game.scenes.length);
     const actor = currentActor(game);
     const showTurn = sc && sc.type !== "intro" && game.phase !== "result";
+    const prog = game.progress || 0;
+    const need = game.goalNeeded || 5;
+    const goal = game.campaign ? game.campaign.goal : game.quest && game.quest.line;
     return `
       <header class="play-top">
         <div>
-          <p class="eyebrow">${escapeHtml(game.quest.name)}</p>
-          <p class="scene-count">${step} / ${game.scenes.length}</p>
+          <p class="eyebrow">${escapeHtml(game.title)}</p>
+          <p class="scene-count">Avanzamento ${prog} / ${need}</p>
         </div>
         <button class="btn text" data-act="home-pause">Pausa</button>
       </header>
@@ -373,7 +397,7 @@
             `<li class="${p.hp <= 0 ? "out" : ""} ${showTurn && actor && actor.id === p.id ? "turn" : ""}"><span class="pn">${escapeHtml(p.name)}</span><span class="hp">${hearts(p.hp, p.maxHp)}</span></li>`
         )
         .join("")}</ul>
-      ${sc && sc.type !== "intro" ? `<p class="mission">Cattivo: ${escapeHtml(game.villain.name)}</p>` : ""}
+      ${goal && sc && sc.type !== "intro" ? `<p class="mission">Obiettivo: ${escapeHtml(goal)}</p>` : ""}
     `;
   }
 
@@ -393,9 +417,9 @@
             : `<p class="who">Tocca a <strong>${escapeHtml(actor ? actor.name : "")}</strong>. Gira la bussola.</p>`
         }
         <div class="legend">
-          <span class="lg"><i class="dot green"></i> verde: riesce</span>
+          <span class="lg"><i class="dot green"></i> verde: avanzate</span>
           <span class="lg"><i class="dot yellow"></i> giallo: ancora</span>
-          <span class="lg"><i class="dot red"></i> rosso: −1 cuore</span>
+          <span class="lg"><i class="dot red"></i> rosso: feriti, restare</span>
         </div>
         <div class="compass-wrap" ${spinning || frozen ? "" : 'data-act="do-spin" role="button" tabindex="0"'}>
           <div class="needle" aria-hidden="true"></div>
@@ -423,7 +447,7 @@
     if (game.status !== "ongoing") return renderEnd();
     refreshActor(game);
     const sc = scene(game);
-    if (!sc || !Array.isArray(sc.story)) {
+    if (!sc || !Array.isArray(sc.story) || !game.campaign || game.goalNeeded == null) {
       return `<section class="screen play">
         <article class="card warn">
           <h2>Questa storia è vecchia</h2>
@@ -446,13 +470,18 @@
 
     if (game.phase === "result") {
       const o = game.lastOutcome || { text: "", ok: true };
+      const kicker = o.ok
+        ? o.advanced
+          ? "Verde — avanzate (" + o.progress + "/" + o.goalNeeded + ")"
+          : "Verde — obiettivo a portata"
+        : "Rosso — non avanzate (" + (o.progress || 0) + "/" + (o.goalNeeded || 5) + ")";
       return `<section class="screen play">${hud(game)}
         ${compassHtml(game, { frozen: true })}
         <article class="card parchment">
-          <p class="card-kicker">${o.color === "red" ? "Rosso" : "Verde"}</p>
+          <p class="card-kicker">${escapeHtml(kicker)}</p>
           ${storyHtml([o.text].concat(o.deathText ? [o.deathText] : []), game)}
         </article>
-        <button class="btn primary xl" data-act="scene-next">Avanti</button>
+        <button class="btn primary xl" data-act="scene-next">${o.ok && sc.type === "climax" ? "Fine" : "Avanti"}</button>
       </section>`;
     }
 
@@ -483,7 +512,7 @@
     const game = activeGame();
     if (!game) return renderHome();
     const sc = game.scenes[game.scenes.length - 1];
-    const label = game.outcome === "win" ? "Finita bene" : game.outcome === "flee" ? "Siete scappati" : "Finita male";
+    const label = game.outcome === "win" ? "Siete usciti" : "Spedizione fallita";
     return `
       <section class="screen end">
         <p class="eyebrow">${escapeHtml(label)}</p>

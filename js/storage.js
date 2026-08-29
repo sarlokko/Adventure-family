@@ -1,13 +1,14 @@
 (function (root) {
   const KEYS = {
-    active: "af.v1.active",
-    used: "af.v1.used",
+    active: "af.v2.active",
+    used: "af.v2.used",
     archive: "af.v1.archive",
     settings: "af.v1.settings"
   };
 
   function emptyUsed() {
     return {
+      campaigns: [],
       worlds: [],
       quests: [],
       villains: [],
